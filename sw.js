@@ -19,3 +19,9 @@ self.addEventListener('fetch', e => {
     caches.match(e.request).then(res => res || fetch(e.request))
   );
 });
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').then(reg => {
+    // Unregister any old SW that might be causing issues
+    reg.update();
+  }).catch(err => console.warn('SW registration failed', err));
+}
