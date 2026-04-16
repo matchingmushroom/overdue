@@ -438,8 +438,48 @@
   const fAmt = (n) => '₹ ' + (Math.abs(n) <= 0.0001 ? "0.00" : parseFloat(n).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}));
   const toggleLoader = (show) => document.getElementById('loader').classList.toggle('hidden', !show);
   const NEPALI_MONTHS = ["Baisakh","Jestha","Ashadh","Shrawan","Bhadra","Ashwin","Kartik","Mangsir","Poush","Magh","Falgun","Chaitra"];
+  
+  // ========== HANDLELOGIN Function  ==========
+    async function handleLogin() {
+      const email = document.getElementById('loginEmail').value.trim();
+      const password = document.getElementById('loginPassword').value;
+      const errorEl = document.getElementById('loginError');
+      
+      if (!email || !password) {
+        errorEl.innerText = 'Please enter username and password';
+        return;
+      }
+      
+      errorEl.innerText = '';
+      toggleLoader(true);
+      
+      try {
+        const url = new URL(API_BASE);
+        url.searchParams.set('action', 'login');
+        url.searchParams.set('username', email);
+        url.searchParams.set('password', password);
+        
+        const response = await jsonp(url.toString());
+        
+        if (response.success) {
+          localStorage.setItem(AUTH_KEY, JSON.stringify({
+            user: response.user,
+            expires: Date.now() + (24 * 60 * 60 * 1000) // 24 hours
+          }));
+          showApp();
+          await loadCustomerList(); // Initialize app data
+        } else {
+          errorEl.innerText = response.error || 'Invalid credentials';
+        }
+      } catch (e) {
+        errorEl.innerText = 'Login failed. Check your connection.';
+        console.error('Login error:', e);
+      } finally {
+        toggleLoader(false);
+      }
+    }
 
-  // ========== OFFLINE DETECTION ==========
+    // ========== OFFLINE DETECTION ==========
   function updateOnlineStatus() {
     const banner = document.getElementById('offlineBanner');
     const indicator = document.getElementById('offlineIndicator');
