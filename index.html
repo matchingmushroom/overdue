@@ -206,26 +206,35 @@
       .sync-btn { padding: 5px 10px; font-size: 11px; }
       .sync-btn i { font-size: 14px; }
     }
+         header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: nowrap;
+    }
+    .app-title {
+      flex: 0 1 auto;
+    }
+    .header-actions {
+      margin-left: auto;
+    }
   </style>
 </head>
 <body>
 <div id="loader" class="hidden"><div class="spinner"></div></div>
 <div id="offlineBanner" class="offline-banner hidden">⚠️ You are offline. Showing cached data.</div>
-
 <header>
   <div class="app-title">
     <i class="material-icons-round">account_balance</i> Overdue Report
     <span id="offlineIndicator" class="offline-badge hidden">Offline</span>
   </div>
   <div class="header-actions">
-    <button id="syncButton" class="sync-btn" onclick="startFullSync()" title="Sync all data offline">
+    <button id="syncButton" class="sync-btn" onclick="startFullSync()">
       <i class="material-icons-round">cloud_download</i>
-      <span>Sync All</span>
-    </button>
+         </button>
   </div>
   <div id="syncProgressBar" class="sync-progress-bar hidden"></div>
 </header>
-
 <main>
   <div id="view-search" class="view">
     <div style="padding:24px 20px 12px 20px;"><input type="text" id="searchInp" class="search-input" placeholder="🔍 Search by customer name or CIF..."></div>
