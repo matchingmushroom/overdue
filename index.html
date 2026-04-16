@@ -16,6 +16,7 @@
   <script src="https://unpkg.com/dexie@3.2.3/dist/dexie.js"></script>
   
   <style>
+    /* ====== EXISTING PREMIUM CRM STYLES (UNCHANGED) ====== */
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     :root {
       --primary: #1A3B5C; --primary-light: #2A5A8C; --accent-gold: #C9A227; --accent-gold-light: #E6C25E;
@@ -33,10 +34,88 @@
     .hidden { display: none !important; }
     .content { padding: 0 20px; max-width: 1280px; margin: 0 auto; }
     
-    header { background: rgba(255,255,255,0.95); backdrop-filter: blur(20px); padding: 16px 24px; position: sticky; top: 0; z-index: 100; border-bottom: 1px solid rgba(0,0,0,0.05); box-shadow: var(--shadow-sm); }
-    .app-title { font-weight: 700; background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%); -webkit-background-clip: text; background-clip: text; color: transparent; display: flex; align-items: center; gap: 12px; font-size: 22px; letter-spacing: -0.3px; }
-    .app-title i { background: linear-gradient(135deg, var(--primary), var(--accent-gold)); -webkit-background-clip: text; background-clip: text; color: transparent; font-size: 28px; }
-    
+    /* ----- Header – Modern Flex Layout (UPDATED) ----- */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: nowrap;
+      padding: 12px 20px;
+      background: rgba(255,255,255,0.95);
+      backdrop-filter: blur(20px);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      border-bottom: 1px solid rgba(0,0,0,0.05);
+      box-shadow: var(--shadow-sm);
+      overflow: visible;
+    }
+    .app-title {
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 20px;
+      letter-spacing: -0.3px;
+      flex: 0 1 auto;
+    }
+    .app-title i {
+      background: linear-gradient(135deg, var(--primary), var(--accent-gold));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      font-size: 26px;
+    }
+    .offline-badge {
+      background: var(--warning);
+      color: #1A1A1A;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 20px;
+      margin-left: 4px;
+      display: inline-block;
+    }
+
+    /* ----- Sync Button – Premium & Compact (NEW) ----- */
+    .sync-btn {
+      background: transparent;
+      border: 1px solid var(--border-light);
+      color: var(--primary);
+      padding: 6px 14px;
+      border-radius: 40px;
+      font-size: 12px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      transition: var(--transition);
+      white-space: nowrap;
+      margin-left: 12px;
+    }
+    .sync-btn i { font-size: 16px; }
+    .sync-btn:hover { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .sync-btn:hover i { color: #fff; }
+    .sync-btn.syncing { background: var(--primary); color: #fff; pointer-events: none; }
+    .sync-btn.syncing i { animation: spin 1s linear infinite; }
+
+    /* Thin Progress Bar (under header) */
+    .sync-progress-bar {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 0%;
+      height: 3px;
+      background: linear-gradient(90deg, var(--primary), var(--accent-gold));
+      transition: width 0.3s ease;
+      z-index: 102;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ----- Premium Customer Header Card (unchanged) ----- */
     .customer-header { background: var(--glass-bg); backdrop-filter: blur(20px); padding: 28px 28px 24px; border-radius: var(--radius-xl); margin-bottom: 28px; border: 1px solid var(--glass-border); box-shadow: var(--shadow-md); transition: var(--transition); }
     .customer-header:hover { box-shadow: var(--shadow-hover); border-color: rgba(26,59,92,0.15); }
     .name-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
@@ -59,6 +138,7 @@
     .group-badge { display: inline-flex; align-items: center; gap: 8px; background: rgba(26,59,92,0.06); color: var(--primary); padding: 8px 18px; border-radius: 40px; font-size: 13px; font-weight: 600; backdrop-filter: blur(4px); transition: var(--transition); cursor: pointer; border: 1px solid rgba(26,59,92,0.08); }
     .group-badge:hover { background: rgba(26,59,92,0.12); transform: scale(0.98); border-color: var(--primary-light); }
     
+    /* ----- Premium Stat Cards ----- */
     .grid-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-bottom: 28px; }
     .stat-card { background: var(--surface-white); border-radius: var(--radius-lg); padding: 22px 20px; transition: var(--transition); border: 1px solid var(--border-light); box-shadow: var(--shadow-sm); position: relative; overflow: hidden; }
     .stat-card::after { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: linear-gradient(90deg, var(--primary), var(--accent-gold)); opacity: 0; transition: opacity 0.3s; }
@@ -69,6 +149,7 @@
     .stat-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-muted); }
     .stat-value { font-size: 26px; font-weight: 800; letter-spacing: -0.5px; color: var(--text-primary); line-height: 1.2; }
     
+    /* ----- Premium Table ----- */
     .table-wrapper { width: 100%; overflow-x: auto; border-radius: var(--radius-lg); background: var(--surface-white); border: 1px solid var(--border-light); box-shadow: var(--shadow-sm); }
     table { border-collapse: collapse; font-size: 13px; width: 100%; min-width: 700px; }
     th, td { padding: 18px 16px; text-align: left; white-space: nowrap; }
@@ -77,12 +158,14 @@
     td { border-bottom: 1px solid #EDF2F7; color: var(--text-primary); font-weight: 500; }
     tfoot td { background: #F8FAFD; font-weight: 800; border-top: 2px solid #E2E8F0; color: var(--primary); }
     
+    /* ----- Group Card (Summary) ----- */
     .group-card { background: var(--surface-white); border-radius: var(--radius-xl); margin-bottom: 24px; border: 1px solid var(--border-light); box-shadow: var(--shadow-sm); overflow: hidden; transition: var(--transition); }
     .group-card:hover { box-shadow: var(--shadow-lg); }
     .group-header-dark { background: linear-gradient(105deg, #0B1E2E 0%, #122B3F 100%); color: white; padding: 22px 28px; }
     .grid-dynamic { display: grid; gap: 1px; background: #E2E8F0; }
     .grid-item-ui { background: white; padding: 20px 24px; }
 
+    /* ----- New Group Member Cards (Premium CRM Style) ----- */
     .member-card { background: var(--surface-white); border-radius: var(--radius-lg); padding: 20px 22px; margin-bottom: 16px; border: 1px solid var(--border-light); box-shadow: var(--shadow-sm); transition: var(--transition); }
     .member-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); border-color: rgba(26,59,92,0.15); }
     .member-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
@@ -94,36 +177,43 @@
     .metric-label { font-size: 13px; font-weight: 500; color: var(--text-muted); }
     .metric-value { font-size: 16px; font-weight: 700; color: var(--text-primary); }
 
+    /* ----- Bottom Navigation Premium ----- */
     .bottom-nav { position: fixed; bottom: 0; width: 100%; background: rgba(255,255,255,0.96); backdrop-filter: blur(20px); display: flex; border-top: 1px solid rgba(0,0,0,0.05); padding-bottom: env(safe-area-inset-bottom); height: 76px; box-shadow: 0 -4px 20px rgba(0,0,0,0.03); }
     .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; font-size: 11px; font-weight: 600; color: var(--text-muted); transition: var(--transition); cursor: pointer; border-radius: 40px; margin: 6px 4px; }
     .nav-item i { font-size: 24px; transition: transform 0.2s; }
     .nav-item.active { color: var(--primary); background: linear-gradient(135deg, rgba(26,59,92,0.06), rgba(201,162,39,0.04)); box-shadow: inset 0 1px 2px rgba(0,0,0,0.02); }
     .nav-item:active i { transform: scale(0.92); }
     
+    /* ----- Search Premium ----- */
     .search-input { width: 100%; padding: 18px 22px; border-radius: 60px; border: 1px solid var(--border-light); background: white; font-size: 16px; font-weight: 500; box-shadow: var(--shadow-sm); transition: var(--transition); }
     .search-input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 4px rgba(26,59,92,0.08); }
     .search-result-item { background: white; border-radius: var(--radius-lg); padding: 20px; margin-bottom: 12px; border: 1px solid var(--border-light); transition: var(--transition); cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
     .search-result-item:hover { border-color: var(--primary); transform: translateX(6px); box-shadow: var(--shadow-md); }
     
+    /* ----- Tabs & Chips Premium ----- */
     .tab-group { display: flex; background: #E9EEF5; padding: 6px; border-radius: 60px; margin: 20px 0; }
     .tab-btn { flex: 1; text-align: center; padding: 14px; font-weight: 700; border-radius: 40px; transition: var(--transition); color: var(--text-secondary); cursor: pointer; }
     .tab-btn.active { background: white; color: var(--primary); box-shadow: var(--shadow-sm); }
     .chip-label { padding: 10px 20px; border-radius: 40px; background: #F0F4FA; font-weight: 600; transition: var(--transition); cursor: pointer; border: 1px solid transparent; }
     .check-chip:checked + .chip-label { background: var(--primary); color: white; box-shadow: 0 4px 12px rgba(26,59,92,0.3); }
     
+    /* ----- Buttons Premium ----- */
     button { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%); border: none; padding: 16px 24px; border-radius: 60px; font-weight: 700; font-size: 15px; box-shadow: 0 4px 14px rgba(26,59,92,0.25); transition: var(--transition); color: white; cursor: pointer; border: 1px solid rgba(255,255,255,0.1); }
     button:active { transform: scale(0.97); box-shadow: 0 2px 8px rgba(26,59,92,0.2); }
     
+    /* ----- Loader Premium ----- */
     #loader { backdrop-filter: blur(12px); background: rgba(255,255,255,0.9); position: fixed; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; z-index: 999; }
     .spinner { width: 48px; height: 48px; border: 3px solid rgba(26,59,92,0.1); border-top: 3px solid var(--primary); border-radius: 50%; animation: spin 0.8s infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
     
+    /* ----- Section Titles Premium ----- */
     .section-title { font-size: 20px; font-weight: 700; letter-spacing: -0.3px; margin: 32px 0 18px; color: var(--text-primary); display: flex; align-items: center; gap: 10px; }
     .section-title i { color: var(--accent-gold); }
     .copy-btn { display: inline-flex; align-items: center; justify-content: center; background: #F0F4FE; color: var(--primary); padding: 8px; border-radius: 10px; transition: var(--transition); cursor: pointer; }
     .copy-btn:hover { background: var(--primary); color: white; }
     .month-slider-track { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 12px; scrollbar-width: thin; }
 
+    /* ----- Modals (Reminder & Share) ----- */
     .reminder-modal, .share-modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px; }
     .reminder-box, .share-box { background: var(--surface-white); border-radius: var(--radius-xl); padding: 28px 24px; width: 100%; max-width: 420px; box-shadow: var(--shadow-lg); border: 1px solid var(--border-light); }
     .rem-title, .share-title { font-size: 20px; font-weight: 700; margin-bottom: 20px; color: var(--primary); }
@@ -138,11 +228,13 @@
     .close-btn:hover { background: #F0F4FA; }
 
     .offline-banner { background: var(--warning); color: #1A1A1A; text-align: center; padding: 8px 16px; font-size: 13px; font-weight: 500; position: sticky; top: 0; z-index: 101; }
-    .offline-badge { background: var(--warning); color: #1A1A1A; font-size: 11px; padding: 2px 8px; border-radius: 20px; margin-left: 8px; display: inline-block; }
 
+    /* ---------- MOBILE OPTIMIZATION ---------- */
     @media (max-width: 640px) {
-      body { padding-bottom: 80px; } .content { padding: 0 16px; } header { padding: 12px 16px; }
-      .app-title { font-size: 18px; gap: 8px; } .app-title i { font-size: 24px; }
+      body { padding-bottom: 80px; } .content { padding: 0 16px; }
+      header { padding: 10px 16px; }
+      .app-title { font-size: 18px; gap: 6px; } .app-title i { font-size: 22px; }
+      .sync-btn { padding: 5px 10px; font-size: 11px; } .sync-btn i { font-size: 14px; }
       .customer-header { padding: 20px 18px 18px; margin-bottom: 20px; border-radius: var(--radius-lg); }
       .name-row { gap: 10px; } .cust-name { font-size: 22px; }
       .st-icon { padding: 4px 10px; font-size: 11px; } .header-actions { gap: 8px; } .action-icon { font-size: 18px; padding: 8px; }
@@ -176,65 +268,24 @@
       .grid-summary .stat-card:nth-child(5) { order: 7; } .grid-summary .stat-card:nth-child(6) { order: 5; }
       .grid-summary .stat-card:nth-child(7) { order: 6; } .grid-summary .stat-card:nth-child(8) { order: 8; }
     }
-         /* Sync Button – Minimal & Premium */
-    .sync-btn {
-      background: transparent;
-      border: 1px solid var(--border-light);
-      color: var(--primary);
-      padding: 6px 14px;
-      border-radius: 40px;
-      font-size: 12px;
-      font-weight: 600;
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      transition: var(--transition);
-      white-space: nowrap;
-    }
-    .sync-btn i { font-size: 16px; }
-    .sync-btn:hover { background: var(--primary); color: #fff; border-color: var(--primary); }
-    .sync-btn:hover i { color: #fff; }
-    .sync-btn.syncing { background: var(--primary); color: #fff; pointer-events: none; opacity: 0.9; }
-    .sync-btn.syncing i { animation: spin 1s linear infinite; }
-    .sync-progress-bar {
-      position: absolute; bottom: 0; left: 0; width: 0%; height: 3px;
-      background: linear-gradient(90deg, var(--primary), var(--accent-gold));
-      transition: width 0.3s ease;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    @media (max-width: 640px) {
-      .sync-btn { padding: 5px 10px; font-size: 11px; }
-      .sync-btn i { font-size: 14px; }
-    }
-         header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      flex-wrap: nowrap;
-    }
-    .app-title {
-      flex: 0 1 auto;
-    }
-    .header-actions {
-      margin-left: auto;
-    }
   </style>
 </head>
 <body>
 <div id="loader" class="hidden"><div class="spinner"></div></div>
 <div id="offlineBanner" class="offline-banner hidden">⚠️ You are offline. Showing cached data.</div>
+
 <header>
   <div class="app-title">
     <i class="material-icons-round">account_balance</i> Overdue Report
     <span id="offlineIndicator" class="offline-badge hidden">Offline</span>
   </div>
-  <div class="header-actions">
-    <button id="syncButton" class="sync-btn" onclick="startFullSync()">
-      <i class="material-icons-round">cloud_download</i>
-         </button>
-  </div>
-  <div id="syncProgressBar" class="sync-progress-bar hidden"></div>
+  <button id="syncButton" class="sync-btn" onclick="startFullSync()" title="Download all data for offline use">
+    <i class="material-icons-round">cloud_download</i>
+    <span>Sync All</span>
+  </button>
+  <div id="syncProgressBar" class="sync-progress-bar"></div>
 </header>
+
 <main>
   <div id="view-search" class="view">
     <div style="padding:24px 20px 12px 20px;"><input type="text" id="searchInp" class="search-input" placeholder="🔍 Search by customer name or CIF..."></div>
@@ -369,397 +420,371 @@
 
 <script>
   // ========== CONFIGURATION ==========
-const API_BASE = 'https://script.google.com/macros/s/AKfycbx4Nl5MJm9UjkSskwRAfZmMnN6M5MTtabLuvb5_b48tvnov06LKfrGv_-KRCBjXaBDw/exec';
-const BATCH_SIZE = 8; // Concurrent requests (adjust based on network)
+  const API_BASE = 'https://script.google.com/macros/s/AKfycbx4Nl5MJm9UjkSskwRAfZmMnN6M5MTtabLuvb5_b48tvnov06LKfrGv_-KRCBjXaBDw/exec'; // ⬅️ REPLACE WITH YOUR SCRIPT ID
+  const BATCH_SIZE = 8;
 
-// IndexedDB v2
-const db = new Dexie("CRM_DB");
-db.version(2).stores({
-  customers: "id",
-  metrics: "CIF_ID",
-  groups: "groupName",
-  extraDetails: "CIF_ID",
-  overdueDetails: "CIF_ID",
-  slicerOptions: "CIF_ID",
-  slicerSummary: "key"
-}).upgrade(tx => { console.log("DB upgraded to v2"); });
+  // IndexedDB (Dexie) v2
+  const db = new Dexie("CRM_DB");
+  db.version(2).stores({
+    customers: "id",
+    metrics: "CIF_ID",
+    groups: "groupName",
+    extraDetails: "CIF_ID",
+    overdueDetails: "CIF_ID",
+    slicerOptions: "CIF_ID",
+    slicerSummary: "key"
+  }).upgrade(tx => { console.log("DB upgraded to v2"); });
 
-const fAmt = (n) => '₹ ' + (Math.abs(n) <= 0.0001 ? "0.00" : parseFloat(n).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}));
-const toggleLoader = (show) => document.getElementById('loader').classList.toggle('hidden', !show);
-const NEPALI_MONTHS = ["Baisakh","Jestha","Ashadh","Shrawan","Bhadra","Ashwin","Kartik","Mangsir","Poush","Magh","Falgun","Chaitra"];
+  const fAmt = (n) => '₹ ' + (Math.abs(n) <= 0.0001 ? "0.00" : parseFloat(n).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}));
+  const toggleLoader = (show) => document.getElementById('loader').classList.toggle('hidden', !show);
+  const NEPALI_MONTHS = ["Baisakh","Jestha","Ashadh","Shrawan","Bhadra","Ashwin","Kartik","Mangsir","Poush","Magh","Falgun","Chaitra"];
 
-// ========== OFFLINE DETECTION ==========
-function updateOnlineStatus() {
-  const banner = document.getElementById('offlineBanner');
-  const indicator = document.getElementById('offlineIndicator');
-  const isOnline = navigator.onLine;
-  banner.classList.toggle('hidden', isOnline);
-  indicator.classList.toggle('hidden', isOnline);
-}
-window.addEventListener('online', updateOnlineStatus);
-window.addEventListener('offline', updateOnlineStatus);
-updateOnlineStatus();
-
-// ========== JSONP API ==========
-function jsonp(url) {
-  return new Promise((resolve, reject) => {
-    const callback = 'jsonp_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
-    window[callback] = (data) => { delete window[callback]; document.body.removeChild(script); resolve(data); };
-    const script = document.createElement('script');
-    script.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + callback;
-    script.onerror = () => { delete window[callback]; document.body.removeChild(script); reject(new Error('JSONP failed')); };
-    document.body.appendChild(script);
-  });
-}
-
-async function apiCall(action, params = {}) {
-  if (!navigator.onLine) throw new Error('Offline');
-  const url = new URL(API_BASE);
-  url.searchParams.set('action', action);
-  Object.entries(params).forEach(([k, v]) => {
-    if (Array.isArray(v)) url.searchParams.set(k, JSON.stringify(v));
-    else if (v !== undefined && v !== null) url.searchParams.set(k, v);
-  });
-  const data = await jsonp(url.toString());
-  if (data.error) throw new Error(data.error);
-  return data;
-}
-
-// ========== GLOBAL STATE ==========
-let customers = [], currentCIF = null, currentGroup = "", slicerMeta = null;
-let syncInProgress = false;
-let syncAbortController = null;
-window.currentCustomer = { name: '', account: '', renewal: '', primaryPhone: '', secondaryPhone: '' };
-
-// ========== INIT ==========
-window.onload = async () => {
-  await loadCustomerList();
-  if (navigator.onLine) {
-    const lastSync = localStorage.getItem('lastFullSync');
-    const shouldSync = !lastSync || (Date.now() - parseInt(lastSync)) > 24 * 60 * 60 * 1000;
-    if (shouldSync) startFullSync();
+  function updateOnlineStatus() {
+    const banner = document.getElementById('offlineBanner');
+    const indicator = document.getElementById('offlineIndicator');
+    const isOnline = navigator.onLine;
+    banner.classList.toggle('hidden', isOnline);
+    indicator.classList.toggle('hidden', isOnline);
   }
-};
+  window.addEventListener('online', updateOnlineStatus);
+  window.addEventListener('offline', updateOnlineStatus);
+  updateOnlineStatus();
 
-// ========== BULK SYNC (FAST) ==========
-let syncInProgress = false;
-let syncAbortController = null;
+  // JSONP (CORS-free)
+  function jsonp(url) {
+    return new Promise((resolve, reject) => {
+      const callback = 'jsonp_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+      window[callback] = (data) => { delete window[callback]; document.body.removeChild(script); resolve(data); };
+      const script = document.createElement('script');
+      script.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + callback;
+      script.onerror = () => { delete window[callback]; document.body.removeChild(script); reject(new Error('JSONP failed')); };
+      document.body.appendChild(script);
+    });
+  }
 
-let syncInProgress = false;
-let syncAbortController = null;
+  async function apiCall(action, params = {}) {
+    if (!navigator.onLine) throw new Error('Offline');
+    const url = new URL(API_BASE);
+    url.searchParams.set('action', action);
+    Object.entries(params).forEach(([k, v]) => {
+      if (Array.isArray(v)) url.searchParams.set(k, JSON.stringify(v));
+      else if (v !== undefined && v !== null) url.searchParams.set(k, v);
+    });
+    const data = await jsonp(url.toString());
+    if (data.error) throw new Error(data.error);
+    return data;
+  }
 
-async function startFullSync() {
-  if (syncInProgress) return;
-  const syncBtn = document.getElementById('syncButton');
-  const progressBar = document.getElementById('syncProgressBar');
-  
-  syncInProgress = true;
-  syncAbortController = new AbortController();
-  
-  // Show syncing state
-  syncBtn.classList.add('syncing');
-  progressBar.classList.remove('hidden');
-  progressBar.style.width = '0%';
-  syncBtn.innerHTML = `<i class="material-icons-round">sync</i><span>0%</span>`;
-  
-  try {
-    const customerList = await db.customers.toArray();
-    const total = customerList.length;
-    let completed = 0;
-    
-    for (let i = 0; i < customerList.length; i += BATCH_SIZE) {
-      if (syncAbortController.signal.aborted) break;
-      
-      const batch = customerList.slice(i, i + BATCH_SIZE);
-      await Promise.allSettled(batch.map(c => fetchAndCacheMetrics(c.id)));
-      
-      completed += batch.length;
-      const pct = Math.round((completed / total) * 100);
-      syncBtn.innerHTML = `<i class="material-icons-round">sync</i><span>${pct}%</span>`;
-      progressBar.style.width = pct + '%';
-      
-      await new Promise(r => setTimeout(r, 200));
+  let customers = [], currentCIF = null, currentGroup = "", slicerMeta = null;
+  let syncInProgress = false;
+  let syncAbortController = null;
+  window.currentCustomer = { name: '', account: '', renewal: '', primaryPhone: '', secondaryPhone: '' };
+
+  window.onload = async () => {
+    await loadCustomerList();
+    if (navigator.onLine) {
+      const lastSync = localStorage.getItem('lastFullSync');
+      const shouldSync = !lastSync || (Date.now() - parseInt(lastSync)) > 24 * 60 * 60 * 1000;
+      if (shouldSync) startFullSync();
     }
-    
-    if (!syncAbortController.signal.aborted) {
-      localStorage.setItem('lastFullSync', Date.now());
-      syncBtn.innerHTML = `<i class="material-icons-round">check_circle</i><span>Done</span>`;
-      progressBar.style.width = '100%';
-      setTimeout(() => {
-        syncBtn.innerHTML = `<i class="material-icons-round">cloud_download</i><span>Sync All</span>`;
-        syncBtn.classList.remove('syncing');
-        progressBar.classList.add('hidden');
-        progressBar.style.width = '0%';
-      }, 2000);
-    } else {
-      resetSyncButton();
-    }
-  } catch (e) {
-    syncBtn.innerHTML = `<i class="material-icons-round">error</i><span>Failed</span>`;
-    setTimeout(() => {
-      resetSyncButton();
-    }, 2000);
-  } finally {
-    syncInProgress = false;
-  }
-}
-
-function resetSyncButton() {
-  const syncBtn = document.getElementById('syncButton');
-  const progressBar = document.getElementById('syncProgressBar');
-  syncBtn.innerHTML = `<i class="material-icons-round">cloud_download</i><span>Sync All</span>`;
-  syncBtn.classList.remove('syncing');
-  progressBar.classList.add('hidden');
-  progressBar.style.width = '0%';
-}
-
-function cancelSync() {
-  if (syncAbortController) {
-    syncAbortController.abort();
-    resetSyncButton();
-    syncInProgress = false;
-  }
-}
-
-
-// ========== CUSTOMER LIST ==========
-async function loadCustomerList() {
-  const cached = await db.customers.toArray();
-  if (cached.length) customers = cached;
-  if (navigator.onLine) {
-    try {
-      const fresh = await apiCall('customers');
-      await db.customers.bulkPut(fresh);
-      customers = fresh;
-    } catch (e) { if (customers.length === 0) alert('Unable to load customers.'); }
-  }
-  setupSearch();
-}
-
-// ========== SEARCH (OFFLINE-FIRST) ==========
-function setupSearch() {
-  const inp = document.getElementById('searchInp'), res = document.getElementById('results');
-  if (!inp) return;
-  inp.oninput = async () => {
-    const val = inp.value.toUpperCase();
-    res.innerHTML = '';
-    if (!val) return;
-    const all = await db.customers.toArray();
-    all.filter(c => (c.name || '').toUpperCase().includes(val) || (c.id || '').includes(val))
-       .slice(0, 12)
-       .forEach(c => {
-         const d = document.createElement('div'); d.className = 'search-result-item';
-         d.innerHTML = `<div><div style="font-weight:700; font-size:16px;">${c.name}</div><div style="color:var(--text-muted); font-size:12px; margin-top:6px;">CIF: ${c.id}</div></div><i class="material-icons-round" style="color:var(--primary);">arrow_forward_ios</i>`;
-         d.onclick = () => { currentCIF = c.id; navTo('detail'); };
-         res.appendChild(d);
-       });
   };
-}
 
-// ========== STATUS ICONS ==========
-function getStatusIcons(actual, probable) {
-  actual = (actual || '').toString().trim().toUpperCase();
-  probable = (probable || '').toString().trim().toUpperCase();
-  let actCls = 'st-act-pass'; if (actual.includes('NPA')) actCls = 'st-act-npa'; else if (actual.includes('WL')) actCls = 'st-act-wl';
-  let probCls = 'st-prob-pass'; if (probable.includes('PNPA')) probCls = 'st-prob-npa'; else if (probable.includes('PWL')) probCls = 'st-prob-wl';
-  return `<div class="st-icon ${actCls}">${actual}</div><div class="st-icon ${probCls}">${probable}</div>`;
-}
-
-// ========== NAVIGATION ==========
-function navTo(v) {
-  if (v === 'group' && (!currentGroup || currentGroup.toUpperCase() === "NO GROUP")) { alert("No group info."); return; }
-  if (v !== 'search' && !currentCIF) { alert("Select a customer first."); return; }
-  document.querySelectorAll('.view').forEach(e => e.classList.add('hidden'));
-  document.querySelectorAll('.nav-item').forEach(e => e.classList.remove('active'));
-  document.getElementById('view-'+v).classList.remove('hidden');
-  document.getElementById('n-'+v).classList.add('active');
-  if (v === 'detail') loadDetails();
-  if (v === 'group') loadGroupDetails();
-  if (v === 'insights') loadInsights();
-}
-
-// ========== DETAILS (cache-first) ==========
-async function loadDetails() {
-  const cached = await db.metrics.get(currentCIF);
-  if (cached) renderMetrics(cached); else toggleLoader(true);
-  if (navigator.onLine) {
+  // ========== BULK SYNC (WITH PROGRESS) ==========
+  async function startFullSync() {
+    if (syncInProgress) return;
+    const syncBtn = document.getElementById('syncButton');
+    const progressBar = document.getElementById('syncProgressBar');
+    
+    syncInProgress = true;
+    syncAbortController = new AbortController();
+    
+    syncBtn.classList.add('syncing');
+    progressBar.style.width = '0%';
+    syncBtn.innerHTML = `<i class="material-icons-round">sync</i><span>0%</span>`;
+    
     try {
-      const m = await apiCall('metrics', { cifId: currentCIF });
-      await db.metrics.put({ CIF_ID: currentCIF, ...m });
-      toggleLoader(false); renderMetrics(m);
-    } catch (e) { toggleLoader(false); if (!cached) alert('Failed to load details.'); }
-  } else { toggleLoader(false); if (!cached) alert('Offline and not cached.'); }
-}
-
-function renderMetrics(m) {
-  document.getElementById('det-name').innerText = m.CUSTOMER_NAME;
-  document.getElementById('det-id').innerHTML = "🆔 CIF: "+m.CIF_ID;
-  currentGroup = (m.CUSTOMER_GROUP || "NO GROUP").trim();
-  const hasGroup = (currentGroup && currentGroup.toUpperCase() !== "NO GROUP");
-  document.getElementById('det-group-tag').style.display = hasGroup ? 'inline-flex' : 'none';
-  document.getElementById('n-group').style.display = hasGroup ? 'flex' : 'none';
-  if (hasGroup) document.getElementById('det-group-tag').innerHTML = `<i class="material-icons-round" style="font-size:16px;">groups</i> ${currentGroup}`;
-  document.getElementById('det-status').innerHTML = getStatusIcons(m.CATEGORY_ACTUAL, m.CATEGORY_PROBABLE);
-  document.getElementById('v-net-ovd').innerHTML = fAmt(m.TOTAL_OVERDUE_NET);
-  document.getElementById('v-tot-ovd').innerHTML = fAmt(m.TOT_OVD_AMT);
-  document.getElementById('v-npa').innerHTML = fAmt(m.MIN_BAL_NPA);
-  document.getElementById('v-wl').innerHTML = fAmt(m.MIN_BAL_WL);
-  document.getElementById('v-loan').innerHTML = fAmt(m.OUTSTANDING_LOAN);
-  document.getElementById('v-op').innerHTML = fAmt(m.OP_BALANCE);
-  document.getElementById('v-days').innerHTML = m.MAX_OVD_DAYS;
-  document.getElementById('v-renewal').innerHTML = m.RENEWAL;
-  document.querySelector("#tbl-loan tbody").innerHTML = m.accounts.map(a => `
-    <tr><td style="white-space: normal; min-width: 180px;"><b>${a.SCHEME}</b><br><span style="color:var(--text-muted); font-size:11px;">${a.ACCOUNT_NO}</span></td>
-    <td>${fAmt(a.OUTSTANDING_LOAN)}</td><td><span style="background:#EEF4FF; padding:4px 12px; border-radius:30px; font-weight:600;">${a.FULL_RATE}%</span></td>
-    <td>${fAmt(a.MIN_BAL_NPA)}</td><td>${fAmt(a.MIN_BAL_WL)}</td><td style="color:var(--danger); font-weight:700;">${fAmt(a.NET_OVD)}</td></tr>`).join('');
-  window.currentCustomer.name = m.CUSTOMER_NAME;
-  window.currentCustomer.renewal = m.RENEWAL;
-  loadExtraDetails();
-}
-
-async function loadExtraDetails() {
-  const grid = document.getElementById("contact-grid"); if (!grid) return;
-  const cached = await db.extraDetails.get(currentCIF);
-  if (cached) renderContact(cached);
-  if (navigator.onLine) {
-    try {
-      const c = await apiCall('extraDetails', { cifId: currentCIF });
-      await db.extraDetails.put({ CIF_ID: currentCIF, ...c });
-      renderContact(c);
-    } catch (e) { if (!cached) grid.innerHTML = "<div class='stat-card'>Contact info unavailable</div>"; }
-  } else if (!cached) grid.innerHTML = "<div class='stat-card'>Contact info unavailable offline</div>";
-}
-
-function renderContact(c) {
-  const grid = document.getElementById("contact-grid");
-  function formatPhones(str) { if (!str) return '-'; return str.split(';').filter(p=>p.trim()).map(p => `<div><a href="tel:${p}" style="text-decoration:none;color:var(--primary);">${p}</a> <span class="copy-btn" onclick="navigator.clipboard.writeText('${p}')"><i class="material-icons-round" style="font-size:16px;">content_copy</i></span></div>`).join(''); }
-  if (!c) { grid.innerHTML = "<div class='stat-card'>No contact info</div>"; return; }
-  window.currentCustomer.account = c.OP_ACCOUNT || '-';
-  window.currentCustomer.primaryPhone = (c.Contact_No || '').split(';')[0]?.trim() || '';
-  window.currentCustomer.secondaryPhone = (c.Additional_Contact_Number || '').split(';')[0]?.trim() || '';
-  let html = `<div class="stat-card"><div class="stat-label">Primary Contact</div><div class="stat-value" style="font-size:16px;">${c.Contact_Person_Name || '-'}<br>${formatPhones(c.Contact_No)}</div></div>`;
-  if (c.Additional_Contact_Number || c.Additional_Person) html += `<div class="stat-card"><div class="stat-label">Additional Contact</div><div class="stat-value" style="font-size:16px;">${c.Additional_Person || '-'} ${c.Additional_Person_Relation ? `(${c.Additional_Person_Relation})` : ''}<br>${formatPhones(c.Additional_Contact_Number)}</div></div>`;
-  grid.innerHTML = html;
-}
-
-// ========== GROUP ==========
-async function loadGroupDetails() {
-  if (!currentGroup || currentGroup.toUpperCase() === "NO GROUP") { document.getElementById('group-content').innerHTML = '<div class="group-card" style="padding:24px;text-align:center;">No group data</div>'; return; }
-  const cached = await db.groups.get(currentGroup);
-  if (cached) renderGroup(cached); else toggleLoader(true);
-  if (navigator.onLine) {
-    try {
-      const d = await apiCall('group', { groupName: currentGroup });
-      await db.groups.put({ groupName: currentGroup, ...d });
-      toggleLoader(false); renderGroup(d);
-    } catch (e) { toggleLoader(false); if (!cached) alert('Failed to load group.'); }
-  } else { toggleLoader(false); if (!cached) alert('Offline and group not cached.'); }
-}
-
-function renderGroup(d) {
-  if (!d || !d.summary) { document.getElementById('group-content').innerHTML = '<div class="group-card" style="padding:24px;">No data</div>'; return; }
-  let html = `<div class="group-card"><div class="group-header-dark"><div style="font-size:22px; font-weight:800;">${d.summary.groupName}</div></div>
-    <div class="grid-dynamic" style="grid-template-columns: repeat(3,1fr);">
-      <div class="grid-item-ui"><div class="stat-label">UNITS</div><div class="stat-value">${d.summary.unitCount}</div></div>
-      <div class="grid-item-ui"><div class="stat-label">TOTAL LOAN</div><div class="stat-value">${fAmt(d.summary.totalLoan)}</div></div>
-      <div class="grid-item-ui"><div class="stat-label">TOTAL OVERDUE</div><div class="stat-value">${fAmt(d.summary.totalOvd)}</div></div>
-      <div class="grid-item-ui"><div class="stat-label">NET OVERDUE</div><div class="stat-value" style="color:var(--danger);">${fAmt(d.summary.totalNetOvd)}</div></div>
-      <div class="grid-item-ui"><div class="stat-label">MIN NPA SAVER</div><div class="stat-value">${fAmt(d.summary.minNpa)}</div></div>
-      <div class="grid-item-ui"><div class="stat-label">MIN WL SAVER</div><div class="stat-value">${fAmt(d.summary.minWl)}</div></div>
-    </div></div>`;
-  d.units.forEach(u => { html += `<div class="member-card"><div class="member-header"><div><div class="member-name">${u.name}</div><div class="member-sub">${u.groupName || currentGroup}</div></div><div class="member-badges">${getStatusIcons(u.actual, u.probable)}</div></div>
-    <div class="member-metrics"><div class="metric-item"><span class="metric-label">Total Overdue</span><span class="metric-value">${fAmt(u.totalOvd)}</span></div>
-    <div class="metric-item"><span class="metric-label">Net Overdue</span><span class="metric-value" style="color:var(--danger);">${fAmt(u.totalNetOvd)}</span></div>
-    <div class="metric-item"><span class="metric-label">Min NPA Saver</span><span class="metric-value">${fAmt(u.minNpa)}</span></div>
-    <div class="metric-item"><span class="metric-label">Min WL Saver</span><span class="metric-value">${fAmt(u.minWl)}</span></div></div></div>`; });
-  document.getElementById('group-content').innerHTML = html;
-}
-
-// ========== INSIGHTS (with caching) ==========
-async function loadInsights() {
-  toggleLoader(true);
-  const cachedOverdue = await db.overdueDetails.get(currentCIF);
-  if (cachedOverdue) renderOverdueDetails(cachedOverdue);
-  await loadSlicerOptions();
-  if (navigator.onLine) {
-    try {
-      const [res, meta] = await Promise.all([apiCall('overdue', { cifId: currentCIF }), apiCall('slicerOptions', { cifId: currentCIF })]);
-      await db.overdueDetails.put({ CIF_ID: currentCIF, ...res });
-      await db.slicerOptions.put({ CIF_ID: currentCIF, ...meta });
-      renderOverdueDetails(res);
-      slicerMeta = meta; renderFilters(meta.years, meta.months); applySlicer();
-    } catch (e) { if (!cachedOverdue) alert('Insights unavailable'); } finally { toggleLoader(false); }
-  } else { toggleLoader(false); if (cachedOverdue) applySlicer(); else alert('Insights not cached'); }
-}
-
-function renderOverdueDetails(res) {
-  document.getElementById('body-daily').innerHTML = res.rows.map(r => `<tr><td style="font-weight:600;">${r.OVD_DATE}</td><td>${fAmt(r.TOT_OVD_AMT)}</td><td>${fAmt(r.I_OVD)}</td><td>${fAmt(r.P_OVD)}</td><td>${fAmt(r.PENAL_INT)}</td></tr>`).join('');
-  document.getElementById('foot-daily').innerHTML = `<tr><td>TOTAL</td><td>${fAmt(res.total.TOT_OVD_AMT)}</td><td>${fAmt(res.total.I_OVD)}</td><td>${fAmt(res.total.P_OVD)}</td><td>${fAmt(res.total.PENAL_INT)}</td></tr>`;
-}
-
-async function loadSlicerOptions() {
-  const cached = await db.slicerOptions.get(currentCIF);
-  if (cached) { slicerMeta = cached; renderFilters(cached.years, cached.months); }
-}
-
-function renderFilters(years, months) {
-  const yrHtml = [`<label><input type="checkbox" class="check-chip yr-chip" value="ALL" checked onchange="toggleAllYears(this)"><div class="chip-label">ALL</div></label>`];
-  years.forEach(y => yrHtml.push(`<label><input type="checkbox" class="check-chip yr-chip sub-yr" value="${y}" checked><div class="chip-label">${y}</div></label>`));
-  document.getElementById('year-chips').innerHTML = yrHtml.join('');
-  document.getElementById('month-chips').innerHTML = months.length ? months.map(m => `<label><input type="checkbox" class="check-chip mn-chip" value="${m}" checked><div class="chip-label">${m}</div></label>`).join('') : '<div style="padding:10px;">No monthly data</div>';
-}
-
-function toggleAllYears(allCheck) { document.querySelectorAll('.sub-yr').forEach(cb => cb.checked = allCheck.checked); }
-
-async function applySlicer() {
-  const checkedYears = Array.from(document.querySelectorAll('.yr-chip:checked')).map(i => i.value);
-  const checkedMonths = Array.from(document.querySelectorAll('.mn-chip:checked')).map(i => i.value);
-  const key = `${currentCIF}_${checkedYears.join(',')}_${checkedMonths.join(',')}`;
-  const cached = await db.slicerSummary.get(key);
-  if (cached) renderSlicerSummary(cached.data);
-  if (navigator.onLine) {
-    try {
-      const d = await apiCall('slicerSummary', { cifId: currentCIF, years: checkedYears, months: checkedMonths });
-      await db.slicerSummary.put({ key, data: d });
-      renderSlicerSummary(d);
-    } catch (e) { if (!cached) alert('Failed to load slicer summary'); }
+      const customerList = await db.customers.toArray();
+      const total = customerList.length;
+      let completed = 0;
+      
+      for (let i = 0; i < customerList.length; i += BATCH_SIZE) {
+        if (syncAbortController.signal.aborted) break;
+        const batch = customerList.slice(i, i + BATCH_SIZE);
+        await Promise.allSettled(batch.map(c => fetchAndCacheMetrics(c.id)));
+        completed += batch.length;
+        const pct = Math.round((completed / total) * 100);
+        syncBtn.innerHTML = `<i class="material-icons-round">sync</i><span>${pct}%</span>`;
+        progressBar.style.width = pct + '%';
+        await new Promise(r => setTimeout(r, 200));
+      }
+      
+      if (!syncAbortController.signal.aborted) {
+        localStorage.setItem('lastFullSync', Date.now());
+        syncBtn.innerHTML = `<i class="material-icons-round">check_circle</i><span>Done</span>`;
+        progressBar.style.width = '100%';
+        setTimeout(() => resetSyncButton(), 2000);
+      } else {
+        resetSyncButton();
+      }
+    } catch (e) {
+      syncBtn.innerHTML = `<i class="material-icons-round">error</i><span>Failed</span>`;
+      setTimeout(() => resetSyncButton(), 2000);
+    } finally {
+      syncInProgress = false;
+    }
   }
-}
 
-function renderSlicerSummary(d) {
-  let t_ovd=0, t_i=0, t_p=0, t_pen=0;
-  document.getElementById('body-nepali').innerHTML = d.map(r => { t_ovd+=r.TOT_OVD_AMT; t_i+=r.I_OVD; t_p+=r.P_OVD; t_pen+=r.PENAL_INT;
-    return `<tr><td style="font-weight:600;">${r.NEPALI_OVD_Month}</td><td>${fAmt(r.TOT_OVD_AMT)}</td><td>${fAmt(r.I_OVD)}</td><td>${fAmt(r.P_OVD)}</td><td>${fAmt(r.PENAL_INT)}</td></tr>`; }).join('');
-  document.getElementById('foot-nepali').innerHTML = `<tr><td>TOTAL</td><td>${fAmt(t_ovd)}</td><td>${fAmt(t_i)}</td><td>${fAmt(t_p)}</td><td>${fAmt(t_pen)}</td></tr>`;
-}
+  async function fetchAndCacheMetrics(cifId) {
+    try {
+      const existing = await db.metrics.get(cifId);
+      if (existing) return;
+      const metrics = await apiCall('metrics', { cifId });
+      await db.metrics.put({ CIF_ID: cifId, ...metrics });
+    } catch (e) { /* skip */ }
+  }
 
-function switchTab(t) { document.getElementById('pane-daily').classList.toggle('hidden', t!=='daily'); document.getElementById('pane-nepali').classList.toggle('hidden', t!=='nepali'); document.getElementById('tab-daily').classList.toggle('active', t==='daily'); document.getElementById('tab-nepali').classList.toggle('active', t==='nepali'); }
+  function resetSyncButton() {
+    const syncBtn = document.getElementById('syncButton');
+    const progressBar = document.getElementById('syncProgressBar');
+    syncBtn.innerHTML = `<i class="material-icons-round">cloud_download</i>`;
+    syncBtn.classList.remove('syncing');
+    progressBar.style.width = '0%';
+  }
 
-// ========== SHARE & REMINDER (unchanged) ==========
-function getAccountShareText() { return `Account Name: ${window.currentCustomer?.name || 'N/A'}\nAccount No.: ${window.currentCustomer?.account || 'N/A'}\nBank: NIC ASIA Bank Limited`; }
-function openShareModal() { if (!window.currentCustomer?.name) { alert("Load a customer first."); return; } document.getElementById('sharePreview').value = getAccountShareText(); document.getElementById('shareModal').classList.remove('hidden'); }
-function closeShareModal() { document.getElementById('shareModal').classList.add('hidden'); }
-function copyAccountInfoFromModal() { navigator.clipboard.writeText(document.getElementById('sharePreview').value).then(() => { alert("✅ Copied!"); closeShareModal(); }).catch(() => alert("❌ Copy failed")); }
-function shareViaWhatsAppFromModal() { window.open(`https://wa.me/?text=${encodeURIComponent(document.getElementById('sharePreview').value)}`, '_blank'); closeShareModal(); }
-function shareViaSMSFromModal() { window.location.href = `sms:?body=${encodeURIComponent(document.getElementById('sharePreview').value)}`; closeShareModal(); }
-document.getElementById('shareModal').addEventListener('click', e => { if (e.target === document.getElementById('shareModal')) closeShareModal(); });
+  function cancelSync() {
+    if (syncAbortController) { syncAbortController.abort(); resetSyncButton(); syncInProgress = false; }
+  }
 
-function openReminderPopup() { if (!window.currentCustomer?.name) { alert("Load a customer first."); return; } document.getElementById('reminderModal').classList.remove('hidden'); updatePreview(); }
-function closeReminder() { document.getElementById('reminderModal').classList.add('hidden'); }
-function getReminderText(lang) {
-  const renewal = (window.currentCustomer?.renewal || '').toUpperCase();
-  if (renewal === 'EXPIRED') return lang==='NP' ? "आदरणीय ग्राहकज्यू, तपाईंको कर्जा खातामा बक्यौता रकम बाँकी रहेको र कर्जा खाता नवीकरण गर्नु आवश्यक रहेको जानकारी गराउन चाहन्छौँ। कृपया बक्यौता भुक्तानी तथा नवीकरणका लागि आवश्यक कागजातसहित शीघ्र सम्पर्क गर्नुहुन अनुरोध छ। धन्यवाद।" : "Dear Valued Customer, please be informed that your loan account has an overdue balance and also requires renewal. Kindly clear the overdue amount and contact us with the necessary documents for renewal at your earliest convenience. Thank you.";
-  return lang==='NP' ? "आदरणीय ग्राहकज्यू, तपाईंको भुक्तानी समयमै नभएकोले बाँकी रहेको जानकारी गराउन चाहन्छौँ। कृपया छिटो भुक्तानी गरिदिनुहुन अनुरोध छ। धन्यवाद।" : "Dear Customer, this is a gentle reminder that your payment is overdue. Kindly arrange clearance at your earliest convenience. Thank you.";
-}
-function updatePreview() { document.getElementById('remPreview').value = getReminderText(document.getElementById('remLang').value); }
-function getSelectedPhone() { return document.getElementById('remContact').value === 'secondary' ? window.currentCustomer.secondaryPhone : window.currentCustomer.primaryPhone; }
-function copyReminder() { navigator.clipboard.writeText(document.getElementById('remPreview').value).then(() => alert('✅ Copied')).catch(() => alert('❌ Copy failed')); }
-function sendWhatsApp() { const phone = getSelectedPhone(); if (!phone) { alert('No phone number'); return; } const text = encodeURIComponent(document.getElementById('remPreview').value); const clean = phone.replace(/[^0-9]/g,''); window.open(`https://wa.me/${clean.startsWith('977') ? clean : '977'+clean}?text=${text}`, '_blank'); }
-function sendSMS() { const phone = getSelectedPhone(); if (!phone) { alert('No phone number'); return; } window.location.href = `sms:${phone}?body=${encodeURIComponent(document.getElementById('remPreview').value)}`; }
-document.getElementById('reminderModal').addEventListener('click', e => { if (e.target === document.getElementById('reminderModal')) closeReminder(); });
+  // ========== CUSTOMER LIST ==========
+  async function loadCustomerList() {
+    const cached = await db.customers.toArray();
+    if (cached.length) customers = cached;
+    if (navigator.onLine) {
+      try {
+        const fresh = await apiCall('customers');
+        await db.customers.bulkPut(fresh);
+        customers = fresh;
+      } catch (e) { if (customers.length === 0) alert('Unable to load customers.'); }
+    }
+    setupSearch();
+  }
 
-// Service Worker
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+  function setupSearch() {
+    const inp = document.getElementById('searchInp'), res = document.getElementById('results');
+    if (!inp) return;
+    inp.oninput = async () => {
+      const val = inp.value.toUpperCase(); res.innerHTML = '';
+      if (!val) return;
+      const all = await db.customers.toArray();
+      all.filter(c => (c.name || '').toUpperCase().includes(val) || (c.id || '').includes(val))
+         .slice(0, 12)
+         .forEach(c => {
+           const d = document.createElement('div'); d.className = 'search-result-item';
+           d.innerHTML = `<div><div style="font-weight:700; font-size:16px;">${c.name}</div><div style="color:var(--text-muted); font-size:12px; margin-top:6px;">CIF: ${c.id}</div></div><i class="material-icons-round" style="color:var(--primary);">arrow_forward_ios</i>`;
+           d.onclick = () => { currentCIF = c.id; navTo('detail'); };
+           res.appendChild(d);
+         });
+    };
+  }
+
+  function getStatusIcons(actual, probable) {
+    actual = (actual || '').toString().trim().toUpperCase();
+    probable = (probable || '').toString().trim().toUpperCase();
+    let actCls = 'st-act-pass'; if (actual.includes('NPA')) actCls = 'st-act-npa'; else if (actual.includes('WL')) actCls = 'st-act-wl';
+    let probCls = 'st-prob-pass'; if (probable.includes('PNPA')) probCls = 'st-prob-npa'; else if (probable.includes('PWL')) probCls = 'st-prob-wl';
+    return `<div class="st-icon ${actCls}">${actual}</div><div class="st-icon ${probCls}">${probable}</div>`;
+  }
+
+  function navTo(v) {
+    if (v === 'group' && (!currentGroup || currentGroup.toUpperCase() === "NO GROUP")) { alert("No group info."); return; }
+    if (v !== 'search' && !currentCIF) { alert("Select a customer first."); return; }
+    document.querySelectorAll('.view').forEach(e => e.classList.add('hidden'));
+    document.querySelectorAll('.nav-item').forEach(e => e.classList.remove('active'));
+    document.getElementById('view-'+v).classList.remove('hidden');
+    document.getElementById('n-'+v).classList.add('active');
+    if (v === 'detail') loadDetails();
+    if (v === 'group') loadGroupDetails();
+    if (v === 'insights') loadInsights();
+  }
+
+  async function loadDetails() {
+    const cached = await db.metrics.get(currentCIF);
+    if (cached) renderMetrics(cached); else toggleLoader(true);
+    if (navigator.onLine) {
+      try {
+        const m = await apiCall('metrics', { cifId: currentCIF });
+        await db.metrics.put({ CIF_ID: currentCIF, ...m });
+        toggleLoader(false); renderMetrics(m);
+      } catch (e) { toggleLoader(false); if (!cached) alert('Failed to load details.'); }
+    } else { toggleLoader(false); if (!cached) alert('Offline and not cached.'); }
+  }
+
+  function renderMetrics(m) {
+    document.getElementById('det-name').innerText = m.CUSTOMER_NAME;
+    document.getElementById('det-id').innerHTML = "🆔 CIF: "+m.CIF_ID;
+    currentGroup = (m.CUSTOMER_GROUP || "NO GROUP").trim();
+    const hasGroup = (currentGroup && currentGroup.toUpperCase() !== "NO GROUP");
+    document.getElementById('det-group-tag').style.display = hasGroup ? 'inline-flex' : 'none';
+    document.getElementById('n-group').style.display = hasGroup ? 'flex' : 'none';
+    if (hasGroup) document.getElementById('det-group-tag').innerHTML = `<i class="material-icons-round" style="font-size:16px;">groups</i> ${currentGroup}`;
+    document.getElementById('det-status').innerHTML = getStatusIcons(m.CATEGORY_ACTUAL, m.CATEGORY_PROBABLE);
+    document.getElementById('v-net-ovd').innerHTML = fAmt(m.TOTAL_OVERDUE_NET);
+    document.getElementById('v-tot-ovd').innerHTML = fAmt(m.TOT_OVD_AMT);
+    document.getElementById('v-npa').innerHTML = fAmt(m.MIN_BAL_NPA);
+    document.getElementById('v-wl').innerHTML = fAmt(m.MIN_BAL_WL);
+    document.getElementById('v-loan').innerHTML = fAmt(m.OUTSTANDING_LOAN);
+    document.getElementById('v-op').innerHTML = fAmt(m.OP_BALANCE);
+    document.getElementById('v-days').innerHTML = m.MAX_OVD_DAYS;
+    document.getElementById('v-renewal').innerHTML = m.RENEWAL;
+    document.querySelector("#tbl-loan tbody").innerHTML = m.accounts.map(a => `
+      <tr><td style="white-space: normal; min-width: 180px;"><b>${a.SCHEME}</b><br><span style="color:var(--text-muted); font-size:11px;">${a.ACCOUNT_NO}</span></td>
+      <td>${fAmt(a.OUTSTANDING_LOAN)}</td><td><span style="background:#EEF4FF; padding:4px 12px; border-radius:30px; font-weight:600;">${a.FULL_RATE}%</span></td>
+      <td>${fAmt(a.MIN_BAL_NPA)}</td><td>${fAmt(a.MIN_BAL_WL)}</td><td style="color:var(--danger); font-weight:700;">${fAmt(a.NET_OVD)}</td></tr>`).join('');
+    window.currentCustomer.name = m.CUSTOMER_NAME;
+    window.currentCustomer.renewal = m.RENEWAL;
+    loadExtraDetails();
+  }
+
+  async function loadExtraDetails() {
+    const grid = document.getElementById("contact-grid"); if (!grid) return;
+    const cached = await db.extraDetails.get(currentCIF);
+    if (cached) renderContact(cached);
+    if (navigator.onLine) {
+      try {
+        const c = await apiCall('extraDetails', { cifId: currentCIF });
+        await db.extraDetails.put({ CIF_ID: currentCIF, ...c });
+        renderContact(c);
+      } catch (e) { if (!cached) grid.innerHTML = "<div class='stat-card'>Contact info unavailable</div>"; }
+    } else if (!cached) grid.innerHTML = "<div class='stat-card'>Contact info unavailable offline</div>";
+  }
+
+  function renderContact(c) {
+    const grid = document.getElementById("contact-grid");
+    function formatPhones(str) { if (!str) return '-'; return str.split(';').filter(p=>p.trim()).map(p => `<div><a href="tel:${p}" style="text-decoration:none;color:var(--primary);">${p}</a> <span class="copy-btn" onclick="navigator.clipboard.writeText('${p}')"><i class="material-icons-round" style="font-size:16px;">content_copy</i></span></div>`).join(''); }
+    if (!c) { grid.innerHTML = "<div class='stat-card'>No contact info</div>"; return; }
+    window.currentCustomer.account = c.OP_ACCOUNT || '-';
+    window.currentCustomer.primaryPhone = (c.Contact_No || '').split(';')[0]?.trim() || '';
+    window.currentCustomer.secondaryPhone = (c.Additional_Contact_Number || '').split(';')[0]?.trim() || '';
+    let html = `<div class="stat-card"><div class="stat-label">Primary Contact</div><div class="stat-value" style="font-size:16px;">${c.Contact_Person_Name || '-'}<br>${formatPhones(c.Contact_No)}</div></div>`;
+    if (c.Additional_Contact_Number || c.Additional_Person) html += `<div class="stat-card"><div class="stat-label">Additional Contact</div><div class="stat-value" style="font-size:16px;">${c.Additional_Person || '-'} ${c.Additional_Person_Relation ? `(${c.Additional_Person_Relation})` : ''}<br>${formatPhones(c.Additional_Contact_Number)}</div></div>`;
+    grid.innerHTML = html;
+  }
+
+  async function loadGroupDetails() {
+    if (!currentGroup || currentGroup.toUpperCase() === "NO GROUP") { document.getElementById('group-content').innerHTML = '<div class="group-card" style="padding:24px;text-align:center;">No group data</div>'; return; }
+    const cached = await db.groups.get(currentGroup);
+    if (cached) renderGroup(cached); else toggleLoader(true);
+    if (navigator.onLine) {
+      try {
+        const d = await apiCall('group', { groupName: currentGroup });
+        await db.groups.put({ groupName: currentGroup, ...d });
+        toggleLoader(false); renderGroup(d);
+      } catch (e) { toggleLoader(false); if (!cached) alert('Failed to load group.'); }
+    } else { toggleLoader(false); if (!cached) alert('Offline and group not cached.'); }
+  }
+
+  function renderGroup(d) {
+    if (!d || !d.summary) { document.getElementById('group-content').innerHTML = '<div class="group-card" style="padding:24px;">No data</div>'; return; }
+    let html = `<div class="group-card"><div class="group-header-dark"><div style="font-size:22px; font-weight:800;">${d.summary.groupName}</div></div>
+      <div class="grid-dynamic" style="grid-template-columns: repeat(3,1fr);">
+        <div class="grid-item-ui"><div class="stat-label">UNITS</div><div class="stat-value">${d.summary.unitCount}</div></div>
+        <div class="grid-item-ui"><div class="stat-label">TOTAL LOAN</div><div class="stat-value">${fAmt(d.summary.totalLoan)}</div></div>
+        <div class="grid-item-ui"><div class="stat-label">TOTAL OVERDUE</div><div class="stat-value">${fAmt(d.summary.totalOvd)}</div></div>
+        <div class="grid-item-ui"><div class="stat-label">NET OVERDUE</div><div class="stat-value" style="color:var(--danger);">${fAmt(d.summary.totalNetOvd)}</div></div>
+        <div class="grid-item-ui"><div class="stat-label">MIN NPA SAVER</div><div class="stat-value">${fAmt(d.summary.minNpa)}</div></div>
+        <div class="grid-item-ui"><div class="stat-label">MIN WL SAVER</div><div class="stat-value">${fAmt(d.summary.minWl)}</div></div>
+      </div></div>`;
+    d.units.forEach(u => { html += `<div class="member-card"><div class="member-header"><div><div class="member-name">${u.name}</div><div class="member-sub">${u.groupName || currentGroup}</div></div><div class="member-badges">${getStatusIcons(u.actual, u.probable)}</div></div>
+      <div class="member-metrics"><div class="metric-item"><span class="metric-label">Total Overdue</span><span class="metric-value">${fAmt(u.totalOvd)}</span></div>
+      <div class="metric-item"><span class="metric-label">Net Overdue</span><span class="metric-value" style="color:var(--danger);">${fAmt(u.totalNetOvd)}</span></div>
+      <div class="metric-item"><span class="metric-label">Min NPA Saver</span><span class="metric-value">${fAmt(u.minNpa)}</span></div>
+      <div class="metric-item"><span class="metric-label">Min WL Saver</span><span class="metric-value">${fAmt(u.minWl)}</span></div></div></div>`; });
+    document.getElementById('group-content').innerHTML = html;
+  }
+
+  async function loadInsights() {
+    toggleLoader(true);
+    const cachedOverdue = await db.overdueDetails.get(currentCIF);
+    if (cachedOverdue) renderOverdueDetails(cachedOverdue);
+    await loadSlicerOptions();
+    if (navigator.onLine) {
+      try {
+        const [res, meta] = await Promise.all([apiCall('overdue', { cifId: currentCIF }), apiCall('slicerOptions', { cifId: currentCIF })]);
+        await db.overdueDetails.put({ CIF_ID: currentCIF, ...res });
+        await db.slicerOptions.put({ CIF_ID: currentCIF, ...meta });
+        renderOverdueDetails(res);
+        slicerMeta = meta; renderFilters(meta.years, meta.months); applySlicer();
+      } catch (e) { if (!cachedOverdue) alert('Insights unavailable'); } finally { toggleLoader(false); }
+    } else { toggleLoader(false); if (cachedOverdue) applySlicer(); else alert('Insights not cached'); }
+  }
+
+  function renderOverdueDetails(res) {
+    document.getElementById('body-daily').innerHTML = res.rows.map(r => `<tr><td style="font-weight:600;">${r.OVD_DATE}</td><td>${fAmt(r.TOT_OVD_AMT)}</td><td>${fAmt(r.I_OVD)}</td><td>${fAmt(r.P_OVD)}</td><td>${fAmt(r.PENAL_INT)}</td></tr>`).join('');
+    document.getElementById('foot-daily').innerHTML = `<tr><td>TOTAL</td><td>${fAmt(res.total.TOT_OVD_AMT)}</td><td>${fAmt(res.total.I_OVD)}</td><td>${fAmt(res.total.P_OVD)}</td><td>${fAmt(res.total.PENAL_INT)}</td></tr>`;
+  }
+
+  async function loadSlicerOptions() {
+    const cached = await db.slicerOptions.get(currentCIF);
+    if (cached) { slicerMeta = cached; renderFilters(cached.years, cached.months); }
+  }
+
+  function renderFilters(years, months) {
+    const yrHtml = [`<label><input type="checkbox" class="check-chip yr-chip" value="ALL" checked onchange="toggleAllYears(this)"><div class="chip-label">ALL</div></label>`];
+    years.forEach(y => yrHtml.push(`<label><input type="checkbox" class="check-chip yr-chip sub-yr" value="${y}" checked><div class="chip-label">${y}</div></label>`));
+    document.getElementById('year-chips').innerHTML = yrHtml.join('');
+    document.getElementById('month-chips').innerHTML = months.length ? months.map(m => `<label><input type="checkbox" class="check-chip mn-chip" value="${m}" checked><div class="chip-label">${m}</div></label>`).join('') : '<div style="padding:10px;">No monthly data</div>';
+  }
+
+  function toggleAllYears(allCheck) { document.querySelectorAll('.sub-yr').forEach(cb => cb.checked = allCheck.checked); }
+
+  async function applySlicer() {
+    const checkedYears = Array.from(document.querySelectorAll('.yr-chip:checked')).map(i => i.value);
+    const checkedMonths = Array.from(document.querySelectorAll('.mn-chip:checked')).map(i => i.value);
+    const key = `${currentCIF}_${checkedYears.join(',')}_${checkedMonths.join(',')}`;
+    const cached = await db.slicerSummary.get(key);
+    if (cached) renderSlicerSummary(cached.data);
+    if (navigator.onLine) {
+      try {
+        const d = await apiCall('slicerSummary', { cifId: currentCIF, years: checkedYears, months: checkedMonths });
+        await db.slicerSummary.put({ key, data: d });
+        renderSlicerSummary(d);
+      } catch (e) { if (!cached) alert('Failed to load slicer summary'); }
+    }
+  }
+
+  function renderSlicerSummary(d) {
+    let t_ovd=0, t_i=0, t_p=0, t_pen=0;
+    document.getElementById('body-nepali').innerHTML = d.map(r => { t_ovd+=r.TOT_OVD_AMT; t_i+=r.I_OVD; t_p+=r.P_OVD; t_pen+=r.PENAL_INT;
+      return `<tr><td style="font-weight:600;">${r.NEPALI_OVD_Month}</td><td>${fAmt(r.TOT_OVD_AMT)}</td><td>${fAmt(r.I_OVD)}</td><td>${fAmt(r.P_OVD)}</td><td>${fAmt(r.PENAL_INT)}</td></tr>`; }).join('');
+    document.getElementById('foot-nepali').innerHTML = `<tr><td>TOTAL</td><td>${fAmt(t_ovd)}</td><td>${fAmt(t_i)}</td><td>${fAmt(t_p)}</td><td>${fAmt(t_pen)}</td></tr>`;
+  }
+
+  function switchTab(t) { document.getElementById('pane-daily').classList.toggle('hidden', t!=='daily'); document.getElementById('pane-nepali').classList.toggle('hidden', t!=='nepali'); document.getElementById('tab-daily').classList.toggle('active', t==='daily'); document.getElementById('tab-nepali').classList.toggle('active', t==='nepali'); }
+
+  // Share & Reminder (unchanged)
+  function getAccountShareText() { return `Account Name: ${window.currentCustomer?.name || 'N/A'}\nAccount No.: ${window.currentCustomer?.account || 'N/A'}\nBank: NIC ASIA Bank Limited`; }
+  function openShareModal() { if (!window.currentCustomer?.name) { alert("Load a customer first."); return; } document.getElementById('sharePreview').value = getAccountShareText(); document.getElementById('shareModal').classList.remove('hidden'); }
+  function closeShareModal() { document.getElementById('shareModal').classList.add('hidden'); }
+  function copyAccountInfoFromModal() { navigator.clipboard.writeText(document.getElementById('sharePreview').value).then(() => { alert("✅ Copied!"); closeShareModal(); }).catch(() => alert("❌ Copy failed")); }
+  function shareViaWhatsAppFromModal() { window.open(`https://wa.me/?text=${encodeURIComponent(document.getElementById('sharePreview').value)}`, '_blank'); closeShareModal(); }
+  function shareViaSMSFromModal() { window.location.href = `sms:?body=${encodeURIComponent(document.getElementById('sharePreview').value)}`; closeShareModal(); }
+  document.getElementById('shareModal').addEventListener('click', e => { if (e.target === document.getElementById('shareModal')) closeShareModal(); });
+
+  function openReminderPopup() { if (!window.currentCustomer?.name) { alert("Load a customer first."); return; } document.getElementById('reminderModal').classList.remove('hidden'); updatePreview(); }
+  function closeReminder() { document.getElementById('reminderModal').classList.add('hidden'); }
+  function getReminderText(lang) {
+    const renewal = (window.currentCustomer?.renewal || '').toUpperCase();
+    if (renewal === 'EXPIRED') return lang==='NP' ? "आदरणीय ग्राहकज्यू, तपाईंको कर्जा खातामा बक्यौता रकम बाँकी रहेको र कर्जा खाता नवीकरण गर्नु आवश्यक रहेको जानकारी गराउन चाहन्छौँ। कृपया बक्यौता भुक्तानी तथा नवीकरणका लागि आवश्यक कागजातसहित शीघ्र सम्पर्क गर्नुहुन अनुरोध छ। धन्यवाद।" : "Dear Valued Customer, please be informed that your loan account has an overdue balance and also requires renewal. Kindly clear the overdue amount and contact us with the necessary documents for renewal at your earliest convenience. Thank you.";
+    return lang==='NP' ? "आदरणीय ग्राहकज्यू, तपाईंको भुक्तानी समयमै नभएकोले बाँकी रहेको जानकारी गराउन चाहन्छौँ। कृपया छिटो भुक्तानी गरिदिनुहुन अनुरोध छ। धन्यवाद।" : "Dear Customer, this is a gentle reminder that your payment is overdue. Kindly arrange clearance at your earliest convenience. Thank you.";
+  }
+  function updatePreview() { document.getElementById('remPreview').value = getReminderText(document.getElementById('remLang').value); }
+  function getSelectedPhone() { return document.getElementById('remContact').value === 'secondary' ? window.currentCustomer.secondaryPhone : window.currentCustomer.primaryPhone; }
+  function copyReminder() { navigator.clipboard.writeText(document.getElementById('remPreview').value).then(() => alert('✅ Copied')).catch(() => alert('❌ Copy failed')); }
+  function sendWhatsApp() { const phone = getSelectedPhone(); if (!phone) { alert('No phone number'); return; } const text = encodeURIComponent(document.getElementById('remPreview').value); const clean = phone.replace(/[^0-9]/g,''); window.open(`https://wa.me/${clean.startsWith('977') ? clean : '977'+clean}?text=${text}`, '_blank'); }
+  function sendSMS() { const phone = getSelectedPhone(); if (!phone) { alert('No phone number'); return; } window.location.href = `sms:${phone}?body=${encodeURIComponent(document.getElementById('remPreview').value)}`; }
+  document.getElementById('reminderModal').addEventListener('click', e => { if (e.target === document.getElementById('reminderModal')) closeReminder(); });
+
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
 </script>
 </body>
 </html>
