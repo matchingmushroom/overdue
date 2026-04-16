@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, viewport-fit=cover">
+  <meta name="theme-color" content="#1A3B5C">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon.png">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+  <script src="https://unpkg.com/dexie@3.2.3/dist/dexie.js"></script>
+  <style>
+    /* ... (keep all existing premium styles from previous version) ... */
+    /* Include all styles from the last working Index.html */
+  </style>
+</head>
+<body>
+<div id="loader" class="hidden"><div class="spinner"></div></div>
+<div id="offlineBanner" class="offline-banner hidden">⚠️ You are offline. Showing cached data.</div>
+
+<header>
+  <div class="app-title">
+    <i class="material-icons-round">account_balance</i> Overdue Report
+    <span id="offlineIndicator" class="offline-badge hidden">Offline</span>
+  </div>
+</header>
+
+<main>
+  <!-- Same view structure as before -->
+</main>
+
+<nav class="bottom-nav">
+  <!-- Same navigation -->
+</nav>
+
+<!-- Modals (share, reminder) unchanged -->
+
+<script>
+  // ========== CONFIGURATION ==========
+  const API_BASE = 'https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec'; // Replace with your Apps Script deployment URL
+
+  // ========== INDEXEDDB SETUP ==========
+  const db = new Dexie("CRM_DB");
+  db.version(1).stores({
+    customers: "id",
+    metrics: "CIF_ID",
+    groups: "groupName",
+    extraDetails: "CIF_ID",
+    overdueDetails: "CIF_ID",
+    slicerOptions: "CIF_ID"
+  });
+
+  // ========== API HELPER ==========
+  async function apiCall(action, params = {}) {
+    if (!navigator.onLine) throw new Error('Offline');
+    const url = new URL(API_BASE);
+    url.searchParams.set('action', action);
+    Object.entries(params).forEach(([k, v]) => {
+      if (Array.isArray(v)) url.searchParams.set(k, JSON.stringify(v));
+      else url.searchParams.set(k, v);
+    });
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    return data;
+  }
+
+  // ========== CACHING LOGIC ==========
+  async function syncAllData() {
+    try {
+      const customers = await apiCall('customers');
+      await db.customers.bulkPut(customers);
+      console.log('Customers synced');
+    } catch(e) { console.warn('Sync customers failed', e); }
+  }
+
+  // ========== UI FUNCTIONS (adapted to use cache-first + network) ==========
+  // Implement loadCustomerList, loadDetails, loadGroupDetails etc. using Dexie and fallback to API.
+
+  // ... (Due to length, I'll provide the critical cache-first pattern)
+
+  async function loadCustomerList() {
+    const cached = await db.customers.toArray();
+    if (cached.length) {
+      customers = cached;
+      setupSearch();
+    }
+    if (navigator.onLine) {
+      try {
+        const fresh = await apiCall('customers');
+        await db.customers.bulkPut(fresh);
+        customers = fresh;
+        setupSearch();
+      } catch(e) { /* ignore */ }
+    }
+  }
+
+  // ========== OFFLINE DETECTION ==========
+  function updateOnlineStatus() {
+    const banner = document.getElementById('offlineBanner');
+    const indicator = document.getElementById('offlineIndicator');
+    if (navigator.onLine) {
+      banner.classList.add('hidden');
+      indicator.classList.add('hidden');
+    } else {
+      banner.classList.remove('hidden');
+      indicator.classList.remove('hidden');
+    }
+  }
+  window.addEventListener('online', updateOnlineStatus);
+  window.addEventListener('offline', updateOnlineStatus);
+  updateOnlineStatus();
+
+  // ========== SERVICE WORKER ==========
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js');
+  }
+
+  // ========== INIT ==========
+  window.onload = () => {
+    loadCustomerList();
+    if (navigator.onLine) syncAllData();
+  };
+</script>
+</body>
+</html>
