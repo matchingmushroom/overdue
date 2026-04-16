@@ -176,6 +176,67 @@
       .grid-summary .stat-card:nth-child(5) { order: 7; } .grid-summary .stat-card:nth-child(6) { order: 5; }
       .grid-summary .stat-card:nth-child(7) { order: 6; } .grid-summary .stat-card:nth-child(8) { order: 8; }
     }
+    /* Premium Sync Button */
+.sync-btn {
+  background: transparent;
+  border: 1px solid var(--border-light);
+  color: var(--primary);
+  padding: 8px 14px;
+  border-radius: 40px;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: var(--transition);
+}
+.sync-btn i {
+  font-size: 18px;
+  color: var(--primary);
+}
+.sync-btn:hover {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+.sync-btn:hover i {
+  color: white;
+}
+.sync-btn.syncing {
+  background: var(--primary);
+  color: white;
+  pointer-events: none;
+  opacity: 0.8;
+}
+.sync-btn.syncing i {
+  animation: spin 1s linear infinite;
+  color: white;
+}
+.sync-progress {
+  font-size: 11px;
+  margin-left: 4px;
+  font-weight: 500;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Adjust header layout for mobile */
+@media (max-width: 640px) {
+  header {
+    padding: 12px 16px;
+  }
+  .sync-btn {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+  .sync-btn i {
+    font-size: 16px;
+  }
+}
   </style>
 </head>
 <body>
@@ -187,7 +248,12 @@
     <i class="material-icons-round">account_balance</i> Overdue Report
     <span id="offlineIndicator" class="offline-badge hidden">Offline</span>
   </div>
-  <button onclick="startFullSync()" style="margin-left:auto; padding:8px 16px; font-size:14px;">🔄 Sync</button>
+  <div class="header-actions" style="margin-left:auto;">
+    <button id="syncButton" class="sync-btn" onclick="startFullSync()" title="Sync all data">
+      <i class="material-icons-round">sync</i>
+      <span>Sync</span>
+    </button>
+  </div>
 </header>
 
 <main>
@@ -397,77 +463,69 @@ window.onload = async () => {
 };
 
 // ========== BULK SYNC (FAST) ==========
+let syncInProgress = false;
+let syncAbortController = null;
+
 async function startFullSync() {
   if (syncInProgress) return;
+  const syncBtn = document.getElementById('syncButton');
+  const originalContent = syncBtn.innerHTML;
+  
   syncInProgress = true;
   syncAbortController = new AbortController();
   
-  const progressBar = document.createElement('div');
-  progressBar.id = 'syncProgress';
-  progressBar.style.cssText = 'position:fixed; bottom:80px; left:20px; right:20px; background:var(--surface-white); padding:12px 16px; border-radius:40px; box-shadow:var(--shadow-lg); z-index:1000; display:flex; align-items:center; gap:12px;';
-  progressBar.innerHTML = `<span style="font-size:14px; font-weight:600;">🔄 Syncing...</span>
-    <div style="flex:1; height:6px; background:#E2E8F0; border-radius:3px;"><div id="syncFill" style="width:0%; height:100%; background:var(--primary); border-radius:3px; transition:width 0.2s;"></div></div>
-    <span id="syncPercent">0%</span>
-    <button onclick="cancelSync()" style="padding:6px 12px; font-size:12px; background:var(--danger);">Cancel</button>`;
-  document.body.appendChild(progressBar);
-
+  // Update button to show syncing state
+  syncBtn.classList.add('syncing');
+  syncBtn.innerHTML = `<i class="material-icons-round">sync</i><span>0%</span>`;
+  
   try {
     const customerList = await db.customers.toArray();
     const total = customerList.length;
     let completed = 0;
     
-    // Process in parallel batches
     for (let i = 0; i < customerList.length; i += BATCH_SIZE) {
       if (syncAbortController.signal.aborted) break;
       
       const batch = customerList.slice(i, i + BATCH_SIZE);
-      const results = await Promise.allSettled(batch.map(c => fetchAndCacheMetrics(c.id)));
+      await Promise.allSettled(batch.map(c => fetchAndCacheMetrics(c.id)));
       
       completed += batch.length;
       const pct = Math.round((completed / total) * 100);
-      document.getElementById('syncFill').style.width = pct + '%';
-      document.getElementById('syncPercent').innerText = pct + '%';
+      syncBtn.innerHTML = `<i class="material-icons-round">sync</i><span>${pct}%</span>`;
       
-      // Small delay between batches to prevent server overload
       await new Promise(r => setTimeout(r, 200));
     }
     
     if (!syncAbortController.signal.aborted) {
       localStorage.setItem('lastFullSync', Date.now());
-      showToast('✅ All data synced!');
+      syncBtn.innerHTML = `<i class="material-icons-round">check_circle</i><span>Done</span>`;
+      setTimeout(() => {
+        syncBtn.innerHTML = originalContent;
+        syncBtn.classList.remove('syncing');
+      }, 2000);
+    } else {
+      syncBtn.innerHTML = originalContent;
+      syncBtn.classList.remove('syncing');
     }
   } catch (e) {
-    showToast('⚠️ Sync interrupted');
+    syncBtn.innerHTML = `<i class="material-icons-round">error</i><span>Failed</span>`;
+    setTimeout(() => {
+      syncBtn.innerHTML = originalContent;
+      syncBtn.classList.remove('syncing');
+    }, 2000);
   } finally {
     syncInProgress = false;
-    document.getElementById('syncProgress')?.remove();
-  }
-}
-
-async function fetchAndCacheMetrics(cifId) {
-  try {
-    // Skip if already cached today
-    const existing = await db.metrics.get(cifId);
-    if (existing) return;
-    
-    const metrics = await apiCall('metrics', { cifId });
-    await db.metrics.put({ CIF_ID: cifId, ...metrics });
-  } catch (e) {
-    // Silently fail for individual records
   }
 }
 
 function cancelSync() {
-  if (syncAbortController) syncAbortController.abort();
-  showToast('Sync cancelled');
-}
-
-function showToast(msg) {
-  const toast = document.createElement('div');
-  toast.style.cssText = 'position:fixed; bottom:100px; left:20px; right:20px; background:var(--surface-white); padding:12px 20px; border-radius:40px; box-shadow:var(--shadow-lg); z-index:1001; text-align:center; font-weight:500;';
-  toast.innerText = msg;
-  document.body.appendChild(toast);
-  setTimeout(() => toast.remove(), 3000);
+  if (syncAbortController) {
+    syncAbortController.abort();
+    const syncBtn = document.getElementById('syncButton');
+    syncBtn.innerHTML = `<i class="material-icons-round">sync</i><span>Sync</span>`;
+    syncBtn.classList.remove('syncing');
+    syncInProgress = false;
+  }
 }
 
 // ========== CUSTOMER LIST ==========
