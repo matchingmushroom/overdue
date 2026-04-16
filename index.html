@@ -459,10 +459,10 @@
 </div>
 
 <!-- Share Modal -->
-<div id="shareModal" class="share-modal hidden"><div class="share-box"><div class="share-title">📤 Share Account Details</div><label>Message Preview</label><textarea id="sharePreview" readonly></textarea><div class="share-actions"><button onclick="copyAccountInfoFromModal()">📋 Copy</button><button onclick="shareViaWhatsAppFromModal()">💬 WhatsApp</button><button onclick="shareViaSMSFromModal()">📱 SMS</button></div><button class="close-btn" onclick="closeShareModal()">Close</button></div></div>
+<div id="shareModal" class="share-modal hidden"><div class="share-box"><div class="share-title">📤</div><label>Message Preview</label><textarea id="sharePreview" readonly></textarea><div class="share-actions"><button onclick="copyAccountInfoFromModal()">📋 Copy</button><button onclick="shareViaWhatsAppFromModal()">💬 WhatsApp</button><button onclick="shareViaSMSFromModal()">📱 SMS</button></div><button class="close-btn" onclick="closeShareModal()">Close</button></div></div>
 
 <!-- Reminder Modal -->
-<div id="reminderModal" class="reminder-modal hidden"><div class="reminder-box"><div class="rem-title">📨 Send Reminder</div><label>Language</label><select id="remLang" onchange="updatePreview()"><option value="EN">English</option><option value="NP">Nepali</option></select><label>Contact</label><select id="remContact" onchange="updatePreview()"><option value="primary">Primary Contact</option><option value="secondary">Additional Contact</option></select><label>Message Preview</label><textarea id="remPreview" readonly></textarea><div class="rem-actions"><button onclick="copyReminder()">📋 Copy</button><button onclick="sendWhatsApp()">💬 WhatsApp</button><button onclick="sendSMS()">📱 SMS</button></div><button class="close-btn" onclick="closeReminder()">Close</button></div></div>
+<div id="reminderModal" class="reminder-modal hidden"><div class="reminder-box"><div class="rem-title">📨</div><label>Language</label><select id="remLang" onchange="updatePreview()"><option value="EN">English</option><option value="NP">Nepali</option></select><label>Contact</label><select id="remContact" onchange="updatePreview()"><option value="primary">Primary Contact</option><option value="secondary">Additional Contact</option></select><label>Message Preview</label><textarea id="remPreview" readonly></textarea><div class="rem-actions"><button onclick="copyReminder()">📋 Copy</button><button onclick="sendWhatsApp()">💬 WhatsApp</button><button onclick="sendSMS()">📱 SMS</button></div><button class="close-btn" onclick="closeReminder()">Close</button></div></div>
 
 <script>
   // ========== CONFIGURATION ==========
@@ -472,7 +472,7 @@
 
   // IndexedDB
   const db = new Dexie("CRM_DB");
-  db.version(3).stores({
+  db.version(4).stores({
     customers: "id", metrics: "CIF_ID", groups: "groupName", extraDetails: "CIF_ID",
     overdueDetails: "CIF_ID", slicerOptions: "CIF_ID", slicerSummary: "key"
   });
@@ -508,7 +508,10 @@
   async function apiCall(action, params = {}) {
     const url = new URL(API_BASE);
     url.searchParams.set('action', action);
-    Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+    Object.entries(params).forEach(([k, v]) => {
+      if (Array.isArray(v)) url.searchParams.set(k, JSON.stringify(v));
+      else url.searchParams.set(k, v);
+    });
     const data = await jsonp(url.toString());
     if (data.error) throw new Error(data.error);
     return data;
@@ -598,8 +601,16 @@
 
   async function loadDetails() {
     toggleLoader(true);
-    try { const m = await apiCall('metrics', { cifId: currentCIF }); await db.metrics.put({ CIF_ID: currentCIF, ...m }); renderMetrics(m); }
-    catch { const c = await db.metrics.get(currentCIF); if (c) renderMetrics(c); else alert('Failed'); }
+    try { 
+      const m = await apiCall('metrics', { cifId: currentCIF }); 
+      await db.metrics.put({ CIF_ID: currentCIF, ...m }); 
+      renderMetrics(m);
+      await loadExtraDetails();
+    } catch { 
+      const c = await db.metrics.get(currentCIF); 
+      if (c) renderMetrics(c); 
+      else alert('Failed to load details'); 
+    }
     toggleLoader(false);
   }
 
@@ -620,12 +631,30 @@
     document.getElementById('v-days').innerHTML = m.MAX_OVD_DAYS;
     document.getElementById('v-renewal').innerHTML = m.RENEWAL;
     document.querySelector("#tbl-loan tbody").innerHTML = m.accounts.map(a => `<tr><td><b>${a.SCHEME}</b><br><span>${a.ACCOUNT_NO}</span></td><td>${fAmt(a.OUTSTANDING_LOAN)}</td><td>${a.FULL_RATE}%</td><td>${fAmt(a.MIN_BAL_NPA)}</td><td>${fAmt(a.MIN_BAL_WL)}</td><td>${fAmt(a.NET_OVD)}</td></tr>`).join('');
-    window.currentCustomer.name = m.CUSTOMER_NAME; window.currentCustomer.renewal = m.RENEWAL;
-    loadExtraDetails();
+    window.currentCustomer.name = m.CUSTOMER_NAME; 
+    window.currentCustomer.renewal = m.RENEWAL;
   }
 
   async function loadExtraDetails() {
-    try { const c = await apiCall('extraDetails', { cifId: currentCIF }); window.currentCustomer.account = c.OP_ACCOUNT||'-'; window.currentCustomer.primaryPhone = (c.Contact_No||'').split(';')[0]; window.currentCustomer.secondaryPhone = (c.Additional_Contact_Number||'').split(';')[0]; } catch (e) {}
+    try { 
+      const c = await apiCall('extraDetails', { cifId: currentCIF }); 
+      await db.extraDetails.put({ CIF_ID: currentCIF, ...c });
+      window.currentCustomer.account = c.OP_ACCOUNT || '-'; 
+      window.currentCustomer.primaryPhone = (c.Contact_No || '').split(';')[0]?.trim() || ''; 
+      window.currentCustomer.secondaryPhone = (c.Additional_Contact_Number || '').split(';')[0]?.trim() || ''; 
+      
+      const grid = document.getElementById('contact-grid');
+      if (grid) {
+        function formatPhones(str) { if (!str) return '-'; return str.split(';').filter(p=>p.trim()).map(p => `<div><a href="tel:${p}" style="text-decoration:none;color:var(--primary);">${p}</a></div>`).join(''); }
+        let html = `<div class="stat-card"><div class="stat-label">Primary Contact</div><div class="stat-value" style="font-size:16px;">${c.Contact_Person_Name || '-'}<br>${formatPhones(c.Contact_No)}</div></div>`;
+        if (c.Additional_Contact_Number || c.Additional_Person) html += `<div class="stat-card"><div class="stat-label">Additional Contact</div><div class="stat-value" style="font-size:16px;">${c.Additional_Person || '-'} ${c.Additional_Person_Relation ? `(${c.Additional_Person_Relation})` : ''}<br>${formatPhones(c.Additional_Contact_Number)}</div></div>`;
+        grid.innerHTML = html;
+      }
+    } catch (e) { 
+      window.currentCustomer.account = '-'; 
+      window.currentCustomer.primaryPhone = ''; 
+      window.currentCustomer.secondaryPhone = ''; 
+    }
   }
 
   async function loadGroupDetails() {
@@ -643,27 +672,200 @@
     document.getElementById('group-content').innerHTML = html;
   }
 
+  // ========== INSIGHTS WITH FULL NEPALI FILTER SUPPORT ==========
   async function loadInsights() {
     toggleLoader(true);
-    try { const res = await apiCall('overdue', { cifId: currentCIF }); document.getElementById('body-daily').innerHTML = res.rows.map(r => `<tr><td>${r.OVD_DATE}</td><td>${fAmt(r.TOT_OVD_AMT)}</td><td>${fAmt(r.I_OVD)}</td><td>${fAmt(r.P_OVD)}</td><td>${fAmt(r.PENAL_INT)}</td></tr>`).join(''); document.getElementById('foot-daily').innerHTML = `<tr><td>TOTAL</td><td>${fAmt(res.total.TOT_OVD_AMT)}</td><td>${fAmt(res.total.I_OVD)}</td><td>${fAmt(res.total.P_OVD)}</td><td>${fAmt(res.total.PENAL_INT)}</td></tr>`; }
-    catch {} finally { toggleLoader(false); }
+    
+    // Load overdue details (monthly breakdown)
+    try {
+      const res = await apiCall('overdue', { cifId: currentCIF });
+      await db.overdueDetails.put({ CIF_ID: currentCIF, ...res });
+      document.getElementById('body-daily').innerHTML = res.rows.map(r => 
+        `<tr><td>${r.OVD_DATE}</td><td>${fAmt(r.TOT_OVD_AMT)}</td><td>${fAmt(r.I_OVD)}</td><td>${fAmt(r.P_OVD)}</td><td>${fAmt(r.PENAL_INT)}</td></tr>`
+      ).join('');
+      document.getElementById('foot-daily').innerHTML = `<tr><td>TOTAL</td><td>${fAmt(res.total.TOT_OVD_AMT)}</td><td>${fAmt(res.total.I_OVD)}</td><td>${fAmt(res.total.P_OVD)}</td><td>${fAmt(res.total.PENAL_INT)}</td></tr>`;
+    } catch (e) {
+      const cached = await db.overdueDetails.get(currentCIF);
+      if (cached) {
+        document.getElementById('body-daily').innerHTML = cached.rows.map(r => 
+          `<tr><td>${r.OVD_DATE}</td><td>${fAmt(r.TOT_OVD_AMT)}</td><td>${fAmt(r.I_OVD)}</td><td>${fAmt(r.P_OVD)}</td><td>${fAmt(r.PENAL_INT)}</td></tr>`
+        ).join('');
+        document.getElementById('foot-daily').innerHTML = `<tr><td>TOTAL</td><td>${fAmt(cached.total.TOT_OVD_AMT)}</td><td>${fAmt(cached.total.I_OVD)}</td><td>${fAmt(cached.total.P_OVD)}</td><td>${fAmt(cached.total.PENAL_INT)}</td></tr>`;
+      }
+    }
+    
+    // Load slicer options (years and months for filters)
+    try {
+      const meta = await apiCall('slicerOptions', { cifId: currentCIF });
+      await db.slicerOptions.put({ CIF_ID: currentCIF, ...meta });
+      slicerMeta = meta;
+      renderFilters(meta.years, meta.months);
+      applySlicer(); // Apply default filters (ALL years, ALL months)
+    } catch (e) {
+      const cached = await db.slicerOptions.get(currentCIF);
+      if (cached) {
+        slicerMeta = cached;
+        renderFilters(cached.years, cached.months);
+        applySlicer();
+      }
+    }
+    
+    toggleLoader(false);
   }
 
-  function switchTab(t) { document.getElementById('pane-daily').classList.toggle('hidden', t!=='daily'); document.getElementById('pane-nepali').classList.toggle('hidden', t!=='nepali'); }
+  function renderFilters(years, months) {
+    const yrHtml = [`<label><input type="checkbox" class="check-chip yr-chip" value="ALL" checked onchange="toggleAllYears(this)"><div class="chip-label">ALL</div></label>`];
+    if (years && years.length) {
+      years.forEach(y => yrHtml.push(`<label><input type="checkbox" class="check-chip yr-chip sub-yr" value="${y}" checked><div class="chip-label">${y}</div></label>`));
+    }
+    document.getElementById('year-chips').innerHTML = yrHtml.join('');
+    
+    if (months && months.length) {
+      document.getElementById('month-chips').innerHTML = months.map(m => 
+        `<label><input type="checkbox" class="check-chip mn-chip" value="${m}" checked><div class="chip-label">${m}</div></label>`
+      ).join('');
+    } else {
+      document.getElementById('month-chips').innerHTML = '<div style="padding:10px;">No monthly data</div>';
+    }
+  }
 
-  // ========== SHARE & REMINDER ==========
-  function getAccountShareText() { return `Account: ${window.currentCustomer.name}\nBank: NIC ASIA`; }
-  function openShareModal() { document.getElementById('sharePreview').value = getAccountShareText(); document.getElementById('shareModal').classList.remove('hidden'); }
+  function toggleAllYears(allCheck) {
+    document.querySelectorAll('.sub-yr').forEach(cb => cb.checked = allCheck.checked);
+  }
+
+  async function applySlicer() {
+    const yearChips = document.querySelectorAll('.yr-chip:checked');
+    const monthChips = document.querySelectorAll('.mn-chip:checked');
+    
+    if (!yearChips.length || !monthChips.length) return;
+    
+    const checkedYears = Array.from(yearChips).map(i => i.value);
+    const checkedMonths = Array.from(monthChips).map(i => i.value);
+    
+    const key = `${currentCIF}_${checkedYears.join(',')}_${checkedMonths.join(',')}`;
+    
+    // Try cache first
+    const cached = await db.slicerSummary.get(key);
+    if (cached) {
+      renderSlicerSummary(cached.data);
+    }
+    
+    // Always fetch fresh if online
+    if (navigator.onLine) {
+      try {
+        const d = await apiCall('slicerSummary', { 
+          cifId: currentCIF, 
+          years: checkedYears, 
+          months: checkedMonths 
+        });
+        await db.slicerSummary.put({ key, data: d });
+        renderSlicerSummary(d);
+      } catch (e) {
+        if (!cached) alert('Failed to load filter results');
+      }
+    } else if (!cached) {
+      alert('Offline and filter results not cached');
+    }
+  }
+
+  function renderSlicerSummary(d) {
+    let t_ovd = 0, t_i = 0, t_p = 0, t_pen = 0;
+    document.getElementById('body-nepali').innerHTML = d.map(r => {
+      t_ovd += r.TOT_OVD_AMT || 0;
+      t_i += r.I_OVD || 0;
+      t_p += r.P_OVD || 0;
+      t_pen += r.PENAL_INT || 0;
+      return `<tr><td style="font-weight:600;">${r.NEPALI_OVD_Month}</td><td>${fAmt(r.TOT_OVD_AMT)}</td><td>${fAmt(r.I_OVD)}</td><td>${fAmt(r.P_OVD)}</td><td>${fAmt(r.PENAL_INT)}</td></tr>`;
+    }).join('');
+    document.getElementById('foot-nepali').innerHTML = `<tr><td>TOTAL</td><td>${fAmt(t_ovd)}</td><td>${fAmt(t_i)}</td><td>${fAmt(t_p)}</td><td>${fAmt(t_pen)}</td></tr>`;
+  }
+
+  function switchTab(t) {
+    document.getElementById('pane-daily').classList.toggle('hidden', t !== 'daily');
+    document.getElementById('pane-nepali').classList.toggle('hidden', t !== 'nepali');
+    document.getElementById('tab-daily').classList.toggle('active', t === 'daily');
+    document.getElementById('tab-nepali').classList.toggle('active', t === 'nepali');
+  }
+
+  // ========== SHARE ACCOUNT ==========
+  function getAccountShareText() {
+    const name = window.currentCustomer?.name || 'N/A';
+    const acc = window.currentCustomer?.account || 'N/A';
+    return `Account Name: ${name}\nAccount No.: ${acc}\nBank: NIC ASIA Bank Limited`;
+  }
+
+  function openShareModal() {
+    if (!window.currentCustomer?.name) { alert("Load a customer first."); return; }
+    document.getElementById('sharePreview').value = getAccountShareText();
+    document.getElementById('shareModal').classList.remove('hidden');
+  }
   function closeShareModal() { document.getElementById('shareModal').classList.add('hidden'); }
-  function copyAccountInfoFromModal() { navigator.clipboard.writeText(document.getElementById('sharePreview').value); alert('Copied!'); closeShareModal(); }
-  function shareViaWhatsAppFromModal() { window.open(`https://wa.me/?text=${encodeURIComponent(document.getElementById('sharePreview').value)}`, '_blank'); closeShareModal(); }
-  function shareViaSMSFromModal() { window.location.href = `sms:?body=${encodeURIComponent(document.getElementById('sharePreview').value)}`; closeShareModal(); }
-  function openReminderPopup() { document.getElementById('reminderModal').classList.remove('hidden'); }
+  function copyAccountInfoFromModal() { 
+    navigator.clipboard.writeText(document.getElementById('sharePreview').value); 
+    alert('✅ Account details copied!'); 
+    closeShareModal(); 
+  }
+  function shareViaWhatsAppFromModal() { 
+    window.open(`https://wa.me/?text=${encodeURIComponent(document.getElementById('sharePreview').value)}`, '_blank'); 
+    closeShareModal(); 
+  }
+  function shareViaSMSFromModal() { 
+    window.location.href = `sms:?body=${encodeURIComponent(document.getElementById('sharePreview').value)}`; 
+    closeShareModal(); 
+  }
+
+  // ========== REMINDER ==========
+  function openReminderPopup() {
+    if (!window.currentCustomer?.name) { alert("Load a customer first."); return; }
+    document.getElementById('reminderModal').classList.remove('hidden');
+    updatePreview();
+  }
   function closeReminder() { document.getElementById('reminderModal').classList.add('hidden'); }
-  function updatePreview() {}
-  function copyReminder() { alert('Copied!'); }
-  function sendWhatsApp() { alert('WhatsApp'); }
-  function sendSMS() { alert('SMS'); }
+  
+  function getReminderText(lang) {
+    const renewal = (window.currentCustomer?.renewal || '').toUpperCase();
+    const isExpired = renewal === 'EXPIRED';
+    
+    if (isExpired) {
+      return lang === 'NP'
+        ? "आदरणीय ग्राहकज्यू, तपाईंको कर्जा खातामा बक्यौता रकम बाँकी रहेको र कर्जा खाता नवीकरण गर्नु आवश्यक रहेको जानकारी गराउन चाहन्छौँ। कृपया बक्यौता भुक्तानी तथा नवीकरणका लागि आवश्यक कागजातसहित शीघ्र सम्पर्क गर्नुहुन अनुरोध छ। धन्यवाद।"
+        : "Dear Valued Customer, please be informed that your loan account has an overdue balance and also requires renewal. Kindly clear the overdue amount and contact us with the necessary documents for renewal at your earliest convenience. Thank you.";
+    }
+    return lang === 'NP'
+      ? "आदरणीय ग्राहकज्यू, तपाईंको भुक्तानी समयमै नभएकोले बाँकी रहेको जानकारी गराउन चाहन्छौँ। कृपया छिटो भुक्तानी गरिदिनुहुन अनुरोध छ। धन्यवाद।"
+      : "Dear Customer, this is a gentle reminder that your payment is overdue. Kindly arrange clearance at your earliest convenience. Thank you.";
+  }
+  
+  function updatePreview() {
+    const lang = document.getElementById('remLang').value;
+    document.getElementById('remPreview').value = getReminderText(lang);
+  }
+  
+  function getSelectedPhone() {
+    const type = document.getElementById('remContact').value;
+    return type === 'secondary' ? window.currentCustomer.secondaryPhone : window.currentCustomer.primaryPhone;
+  }
+  
+  function copyReminder() {
+    navigator.clipboard.writeText(document.getElementById('remPreview').value);
+    alert('✅ Message copied to clipboard');
+  }
+  
+  function sendWhatsApp() {
+    const phone = getSelectedPhone();
+    if (!phone) { alert('No phone number available for selected contact.'); return; }
+    const text = encodeURIComponent(document.getElementById('remPreview').value);
+    const cleanPhone = phone.replace(/[^0-9]/g, '');
+    const fullPhone = cleanPhone.startsWith('977') ? cleanPhone : '977' + cleanPhone;
+    window.open(`https://wa.me/${fullPhone}?text=${text}`, '_blank');
+  }
+  
+  function sendSMS() {
+    const phone = getSelectedPhone();
+    if (!phone) { alert('No phone number available for selected contact.'); return; }
+    const text = encodeURIComponent(document.getElementById('remPreview').value);
+    window.location.href = `sms:${phone}?body=${text}`;
+  }
 
   // ========== SYNC ==========
   async function startFullSync() {
@@ -672,18 +874,26 @@
     try {
       const fresh = await apiCall('customers'); await db.customers.bulkPut(fresh);
       for (let i = 0; i < fresh.length; i++) {
-        try { const m = await apiCall('metrics', { cifId: fresh[i].id }); await db.metrics.put({ CIF_ID: fresh[i].id, ...m }); } catch (e) {}
+        try { 
+          const m = await apiCall('metrics', { cifId: fresh[i].id }); 
+          await db.metrics.put({ CIF_ID: fresh[i].id, ...m }); 
+        } catch (e) {}
         const pct = Math.round(((i+1)/fresh.length)*100);
         btn.innerHTML = `<i class="material-icons-round">sync</i><span>${pct}%</span>`;
         bar.style.width = pct + '%';
+        await new Promise(r => setTimeout(r, 50));
       }
       btn.innerHTML = `<i class="material-icons-round">check_circle</i><span>Done</span>`;
       setTimeout(() => { btn.innerHTML = `<i class="material-icons-round">cloud_download</i><span>Sync All</span>`; btn.classList.remove('syncing'); bar.style.width = '0%'; }, 2000);
-    } catch (e) { btn.innerHTML = `<i class="material-icons-round">error</i><span>Failed</span>`; }
+    } catch (e) { 
+      btn.innerHTML = `<i class="material-icons-round">error</i><span>Failed</span>`; 
+      setTimeout(() => { btn.innerHTML = `<i class="material-icons-round">cloud_download</i><span>Sync All</span>`; btn.classList.remove('syncing'); }, 2000);
+    }
   }
 
   // ========== INIT ==========
   checkAuth();
 </script>
+
 </body>
 </html>
