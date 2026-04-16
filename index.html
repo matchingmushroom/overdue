@@ -905,27 +905,103 @@
 
   // ========== SYNC ==========
   async function startFullSync() {
-    const btn = document.getElementById('syncButton'), bar = document.getElementById('syncProgressBar');
-    btn.classList.add('syncing'); btn.innerHTML = `<i class="material-icons-round">sync</i><span>0%</span>`; bar.style.width = '0%';
-    try {
-      const fresh = await apiCall('customers'); await db.customers.bulkPut(fresh);
-      for (let i = 0; i < fresh.length; i++) {
-        try { 
-          const m = await apiCall('metrics', { cifId: fresh[i].id }); 
-          await db.metrics.put({ CIF_ID: fresh[i].id, ...m }); 
+  const btn = document.getElementById('syncButton'), bar = document.getElementById('syncProgressBar');
+  btn.classList.add('syncing'); btn.innerHTML = `<i class="material-icons-round">sync</i><span>0%</span>`; bar.style.width = '0%';
+  
+  const BATCH_SIZE = 10; // Concurrent customers
+  const startTime = Date.now();
+  
+  try {
+    // Step 1: Fetch customer list (fast)
+    const fresh = await apiCall('customers');
+    await db.customers.bulkPut(fresh);
+    
+    const total = fresh.length;
+    const groupNames = new Set();
+    let completed = 0;
+    
+    // Step 2: Process in parallel batches
+    for (let i = 0; i < fresh.length; i += BATCH_SIZE) {
+      const batch = fresh.slice(i, i + BATCH_SIZE);
+      
+      // Each customer: fetch all 4 data types simultaneously
+      await Promise.all(batch.map(async (c) => {
+        try {
+          const [metrics, extra, overdue, slicerOpts] = await Promise.allSettled([
+            apiCall('metrics', { cifId: c.id }),
+            apiCall('extraDetails', { cifId: c.id }),
+            apiCall('overdue', { cifId: c.id }),
+            apiCall('slicerOptions', { cifId: c.id })
+          ]);
+          
+          if (metrics.status === 'fulfilled') {
+            await db.metrics.put({ CIF_ID: c.id, ...metrics.value });
+            const group = (metrics.value.CUSTOMER_GROUP || '').trim();
+            if (group && group.toUpperCase() !== 'NO GROUP') groupNames.add(group);
+          }
+          if (extra.status === 'fulfilled' && extra.value) {
+            await db.extraDetails.put({ CIF_ID: c.id, ...extra.value });
+          }
+          if (overdue.status === 'fulfilled') {
+            await db.overdueDetails.put({ CIF_ID: c.id, ...overdue.value });
+          }
+          if (slicerOpts.status === 'fulfilled') {
+            await db.slicerOptions.put({ CIF_ID: c.id, ...slicerOpts.value });
+          }
         } catch (e) {}
-        const pct = Math.round(((i+1)/fresh.length)*100);
+        
+        completed++;
+        const pct = Math.round((completed / total) * 100);
+        const elapsed = (Date.now() - startTime) / 1000;
+        const eta = completed > 0 ? Math.round((elapsed / completed) * (total - completed)) : 0;
+        
         btn.innerHTML = `<i class="material-icons-round">sync</i><span>${pct}%</span>`;
         bar.style.width = pct + '%';
-        await new Promise(r => setTimeout(r, 50));
-      }
-      btn.innerHTML = `<i class="material-icons-round">check_circle</i><span>Done</span>`;
-      setTimeout(() => { btn.innerHTML = `<i class="material-icons-round">cloud_download</i><span>Sync All</span>`; btn.classList.remove('syncing'); bar.style.width = '0%'; }, 2000);
-    } catch (e) { 
-      btn.innerHTML = `<i class="material-icons-round">error</i><span>Failed</span>`; 
-      setTimeout(() => { btn.innerHTML = `<i class="material-icons-round">cloud_download</i><span>Sync All</span>`; btn.classList.remove('syncing'); }, 2000);
+        showSyncStatus(`${completed}/${total} (ETA: ${eta}s)`);
+      }));
+      
+      // Minimal delay between batches
+      await new Promise(r => setTimeout(r, 20));
     }
+    
+    // Step 3: Fetch groups in parallel
+    if (groupNames.size > 0) {
+      const groups = Array.from(groupNames);
+      await Promise.all(groups.map(async (g) => {
+        try {
+          const groupData = await apiCall('group', { groupName: g });
+          await db.groups.put({ groupName: g, ...groupData });
+        } catch (e) {}
+      }));
+    }
+    
+    const totalTime = Math.round((Date.now() - startTime) / 1000);
+    localStorage.setItem('lastFullSync', Date.now());
+    btn.innerHTML = `<i class="material-icons-round">check_circle</i><span>${totalTime}s</span>`;
+    bar.style.width = '100%';
+    showSyncStatus(`✅ ${total} customers in ${totalTime}s`);
+    
+    setTimeout(() => { 
+      btn.innerHTML = `<i class="material-icons-round">cloud_download</i><span>Sync All</span>`; 
+      btn.classList.remove('syncing'); 
+      bar.style.width = '0%';
+      updateOnlineStatus();
+    }, 3000);
+    
+  } catch (e) { 
+    btn.innerHTML = `<i class="material-icons-round">error</i><span>Failed</span>`; 
+    setTimeout(() => { 
+      btn.innerHTML = `<i class="material-icons-round">cloud_download</i><span>Sync All</span>`; 
+      btn.classList.remove('syncing'); 
+    }, 2000);
   }
+}
+
+function showSyncStatus(msg) {
+  const banner = document.getElementById('offlineBanner');
+  banner.innerText = '🔄 ' + msg;
+  banner.classList.remove('hidden');
+}
 
   // ========== INIT ==========
   checkAuth();
