@@ -1,7 +1,7 @@
 {
-  "name": "Overdue Report CRM",
-  "short_name": "Overdue CRM",
-  "description": "Customer overdue management system",
+  "name": "Behind Schedule",
+  "short_name": "Behind Schedule",
+  "description": "Customer overdue View system",
   "start_url": "/",
   "display": "standalone",
   "theme_color": "#1A3B5C",
