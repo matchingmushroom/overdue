@@ -546,28 +546,74 @@
     }
   }
 
-  // ========== CUSTOMER LIST ==========
-  async function loadCustomerList() {
-    const cached = await db.customers.toArray();
-    if (cached.length) customers = cached;
-    if (navigator.onLine) {
-      try { const fresh = await apiCall('customers'); await db.customers.bulkPut(fresh); customers = fresh; } catch (e) {}
+  // ========== CUSTOMER LIST (FIXED) ==========
+async function loadCustomerList() {
+  // Try to load from IndexedDB first
+  const cached = await db.customers.toArray();
+  if (cached.length > 0) {
+    customers = cached;
+    setupSearch();
+    console.log('Loaded customers from cache:', customers.length);
+  }
+  
+  // If online, fetch fresh data and update
+  if (navigator.onLine) {
+    try {
+      const fresh = await apiCall('customers');
+      await db.customers.bulkPut(fresh);
+      customers = fresh;
+      setupSearch();
+      console.log('Loaded fresh customers:', customers.length);
+    } catch (e) {
+      console.warn('Failed to fetch fresh customers, using cache');
+      if (customers.length === 0) {
+        alert('Unable to load customer data. Please check your connection.');
+      }
+      setupSearch(); // Still setup search with whatever we have
+    }
+  } else {
+    if (customers.length === 0) {
+      alert('You are offline and no cached data available. Please sync when online.');
     }
     setupSearch();
   }
+}
 
-  function setupSearch() {
-    const inp = document.getElementById('searchInp'), res = document.getElementById('results');
-    inp.oninput = async () => {
-      const val = inp.value.toUpperCase(); res.innerHTML = '';
-      if (!val) return;
-      (await db.customers.toArray()).filter(c => (c.name||'').toUpperCase().includes(val) || (c.id||'').includes(val)).slice(0,12).forEach(c => {
-        const d = document.createElement('div'); d.className = 'search-result-item';
-        d.innerHTML = `<div><div style="font-weight:700;">${c.name}</div><div style="color:var(--text-muted);">CIF: ${c.id}</div></div><i class="material-icons-round">arrow_forward_ios</i>`;
-        d.onclick = () => { currentCIF = c.id; navTo('detail'); }; res.appendChild(d);
-      });
-    };
+function setupSearch() {
+  const inp = document.getElementById('searchInp');
+  const res = document.getElementById('results');
+  if (!inp) {
+    console.error('Search input not found');
+    return;
   }
+  
+  inp.oninput = async () => {
+    const val = inp.value.trim().toUpperCase();
+    res.innerHTML = '';
+    if (!val) return;
+    
+    // Get all customers from the in-memory array (which is kept updated)
+    const allCustomers = customers.length > 0 ? customers : await db.customers.toArray();
+    
+    const filtered = allCustomers.filter(c => 
+      (c.name && c.name.toUpperCase().includes(val)) || 
+      (c.id && c.id.toString().includes(val))
+    ).slice(0, 12);
+    
+    if (filtered.length === 0) {
+      res.innerHTML = '<div class="search-result-item" style="justify-content:center; color:var(--text-muted);">No customers found</div>';
+      return;
+    }
+    
+    filtered.forEach(c => {
+      const d = document.createElement('div');
+      d.className = 'search-result-item';
+      d.innerHTML = `<div><div style="font-weight:700; font-size:16px;">${c.name || 'Unknown'}</div><div style="color:var(--text-muted); font-size:12px; margin-top:6px;">CIF: ${c.id || 'N/A'}</div></div><i class="material-icons-round" style="color:var(--primary);">arrow_forward_ios</i>`;
+      d.onclick = () => { currentCIF = c.id; navTo('detail'); };
+      res.appendChild(d);
+    });
+  };
+}
 
   function getStatusIcons(a, p) {
     a = (a||'').toUpperCase(); p = (p||'').toUpperCase();
