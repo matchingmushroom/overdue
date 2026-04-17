@@ -704,20 +704,135 @@ function setupSearch() {
   }
 
   // ========== INSIGHTS (LOCALSTORAGE CACHE) ==========
-  async function loadInsights() {
-    const key = 'insights_' + currentCIF;
-    const cached = localStorage.getItem(key);
-    if (cached) { const res = JSON.parse(cached); renderOverdueDetails(res); }
-    if (navigator.onLine) {
-      try { const res = await apiCall('overdue', { cifId: currentCIF }); localStorage.setItem(key, JSON.stringify(res)); renderOverdueDetails(res); } catch (e) {}
+// ========== INSIGHTS (FULLY WORKING WITH NEPALI FILTERS) ==========
+async function loadInsights() {
+  toggleLoader(true);
+  
+  // Load overdue details (monthly breakdown) - cache-first
+  const overdueKey = 'overdue_' + currentCIF;
+  const cachedOverdue = localStorage.getItem(overdueKey);
+  if (cachedOverdue) {
+    renderOverdueDetails(JSON.parse(cachedOverdue));
+  }
+  
+  // Load slicer options - cache-first
+  await loadSlicerOptions();
+  
+  if (navigator.onLine) {
+    try {
+      // Fetch fresh overdue details
+      const res = await apiCall('overdue', { cifId: currentCIF });
+      localStorage.setItem(overdueKey, JSON.stringify(res));
+      renderOverdueDetails(res);
+      
+      // Fetch fresh slicer options
+      const meta = await apiCall('slicerOptions', { cifId: currentCIF });
+      localStorage.setItem('slicerOptions_' + currentCIF, JSON.stringify(meta));
+      slicerMeta = meta;
+      renderFilters(meta.years, meta.months);
+      applySlicer(); // Apply default filters (ALL years, ALL months)
+    } catch (e) {
+      console.warn('Failed to fetch fresh insights, using cache');
+      if (!cachedOverdue) alert('Unable to load insights. Check your connection.');
+    } finally {
+      toggleLoader(false);
     }
-    // Slicer options similarly...
+  } else {
+    toggleLoader(false);
+    if (!cachedOverdue) alert('You are offline and insights not cached.');
+    else applySlicer(); // Still apply filters with cached slicer options
   }
+}
 
-  function renderOverdueDetails(res) {
-    document.getElementById('body-daily').innerHTML = res.rows.map(r => `<tr><td>${r.OVD_DATE}</td><td>${fAmt(r.TOT_OVD_AMT)}</td><td>${fAmt(r.I_OVD)}</td><td>${fAmt(r.P_OVD)}</td><td>${fAmt(r.PENAL_INT)}</td></tr>`).join('');
-    document.getElementById('foot-daily').innerHTML = `<tr><td>TOTAL</td><td>${fAmt(res.total.TOT_OVD_AMT)}</td><td>${fAmt(res.total.I_OVD)}</td><td>${fAmt(res.total.P_OVD)}</td><td>${fAmt(res.total.PENAL_INT)}</td></tr>`;
+async function loadSlicerOptions() {
+  const key = 'slicerOptions_' + currentCIF;
+  const cached = localStorage.getItem(key);
+  if (cached) {
+    slicerMeta = JSON.parse(cached);
+    renderFilters(slicerMeta.years, slicerMeta.months);
   }
+}
+
+function renderFilters(years, months) {
+  const yrHtml = [`<label><input type="checkbox" class="check-chip yr-chip" value="ALL" checked onchange="toggleAllYears(this)"><div class="chip-label">ALL</div></label>`];
+  if (years && years.length) {
+    years.forEach(y => yrHtml.push(`<label><input type="checkbox" class="check-chip yr-chip sub-yr" value="${y}" checked><div class="chip-label">${y}</div></label>`));
+  }
+  document.getElementById('year-chips').innerHTML = yrHtml.join('');
+  
+  if (months && months.length) {
+    document.getElementById('month-chips').innerHTML = months.map(m => 
+      `<label><input type="checkbox" class="check-chip mn-chip" value="${m}" checked><div class="chip-label">${m}</div></label>`
+    ).join('');
+  } else {
+    document.getElementById('month-chips').innerHTML = '<div style="padding:10px;">No monthly data</div>';
+  }
+}
+
+function toggleAllYears(allCheck) {
+  document.querySelectorAll('.sub-yr').forEach(cb => cb.checked = allCheck.checked);
+}
+
+async function applySlicer() {
+  const yearChips = document.querySelectorAll('.yr-chip:checked');
+  const monthChips = document.querySelectorAll('.mn-chip:checked');
+  
+  if (!yearChips.length || !monthChips.length) {
+    console.warn('No year or month selected');
+    return;
+  }
+  
+  const checkedYears = Array.from(yearChips).map(i => i.value);
+  const checkedMonths = Array.from(monthChips).map(i => i.value);
+  
+  const summaryKey = `slicerSummary_${currentCIF}_${checkedYears.join(',')}_${checkedMonths.join(',')}`;
+  const cached = localStorage.getItem(summaryKey);
+  if (cached) {
+    renderSlicerSummary(JSON.parse(cached));
+  }
+  
+  if (navigator.onLine) {
+    try {
+      const d = await apiCall('slicerSummary', { 
+        cifId: currentCIF, 
+        years: checkedYears, 
+        months: checkedMonths 
+      });
+      localStorage.setItem(summaryKey, JSON.stringify(d));
+      renderSlicerSummary(d);
+    } catch (e) {
+      if (!cached) alert('Failed to load filter results. Check your connection.');
+    }
+  } else if (!cached) {
+    alert('Offline and filter results not cached.');
+  }
+}
+
+function renderSlicerSummary(d) {
+  let t_ovd = 0, t_i = 0, t_p = 0, t_pen = 0;
+  document.getElementById('body-nepali').innerHTML = d.map(r => {
+    t_ovd += r.TOT_OVD_AMT || 0;
+    t_i += r.I_OVD || 0;
+    t_p += r.P_OVD || 0;
+    t_pen += r.PENAL_INT || 0;
+    return `<tr><td style="font-weight:600;">${r.NEPALI_OVD_Month}</td><td>${fAmt(r.TOT_OVD_AMT)}</td><td>${fAmt(r.I_OVD)}</td><td>${fAmt(r.P_OVD)}</td><td>${fAmt(r.PENAL_INT)}</td></tr>`;
+  }).join('');
+  document.getElementById('foot-nepali').innerHTML = `<tr><td>TOTAL</td><td>${fAmt(t_ovd)}</td><td>${fAmt(t_i)}</td><td>${fAmt(t_p)}</td><td>${fAmt(t_pen)}</td></tr>`;
+}
+
+function renderOverdueDetails(res) {
+  document.getElementById('body-daily').innerHTML = res.rows.map(r => 
+    `<tr><td style="font-weight:600;">${r.OVD_DATE}</td><td>${fAmt(r.TOT_OVD_AMT)}</td><td>${fAmt(r.I_OVD)}</td><td>${fAmt(r.P_OVD)}</td><td>${fAmt(r.PENAL_INT)}</td></tr>`
+  ).join('');
+  document.getElementById('foot-daily').innerHTML = `<tr><td>TOTAL</td><td>${fAmt(res.total.TOT_OVD_AMT)}</td><td>${fAmt(res.total.I_OVD)}</td><td>${fAmt(res.total.P_OVD)}</td><td>${fAmt(res.total.PENAL_INT)}</td></tr>`;
+}
+
+function switchTab(t) {
+  document.getElementById('pane-daily').classList.toggle('hidden', t !== 'daily');
+  document.getElementById('pane-nepali').classList.toggle('hidden', t !== 'nepali');
+  document.getElementById('tab-daily').classList.toggle('active', t === 'daily');
+  document.getElementById('tab-nepali').classList.toggle('active', t === 'nepali');
+}
 
   // ========== SHARE & REMINDER (UNCHANGED) ==========
   function getAccountShareText() { return `Account Name: ${window.currentCustomer?.name || 'N/A'}\nAccount No.: ${window.currentCustomer?.account || 'N/A'}\nBank: NIC ASIA Bank Limited`; }
