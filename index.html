@@ -703,121 +703,165 @@ function setupSearch() {
     document.getElementById('group-content').innerHTML = html;
   }
 
-  // ========== INSIGHTS (LIGHTWEIGHT & WORKING) ==========
-  async function loadInsights() {
-    toggleLoader(true);
-    
-    // Load overdue details (cache-first)
-    const overdueKey = 'overdue_' + currentCIF;
-    const cachedOverdue = localStorage.getItem(overdueKey);
-    if (cachedOverdue) renderOverdueDetails(JSON.parse(cachedOverdue));
-    
-    // Load slicer options (cache-first)
-    await loadSlicerOptions();
-    
-    if (navigator.onLine) {
-      try {
-        const res = await apiCall('overdue', { cifId: currentCIF });
-        localStorage.setItem(overdueKey, JSON.stringify(res));
-        renderOverdueDetails(res);
-        
-        const meta = await apiCall('slicerOptions', { cifId: currentCIF });
-        localStorage.setItem('slicerOptions_' + currentCIF, JSON.stringify(meta));
-        slicerMeta = meta;
-        renderFilters(meta.years, meta.months);
-      } catch (e) {
-        if (!cachedOverdue) alert('Insights unavailable offline');
-      } finally {
-        toggleLoader(false);
+// ========== INSIGHTS (FULLY FIXED) ==========
+async function loadInsights() {
+  toggleLoader(true);
+  
+  const overdueKey = 'overdue_' + currentCIF;
+  const slicerKey = 'slicerOptions_' + currentCIF;
+  
+  // Load cached data first
+  const cachedOverdue = localStorage.getItem(overdueKey);
+  if (cachedOverdue) {
+    renderOverdueDetails(JSON.parse(cachedOverdue));
+  }
+  
+  const cachedSlicer = localStorage.getItem(slicerKey);
+  if (cachedSlicer) {
+    slicerMeta = JSON.parse(cachedSlicer);
+    renderFilters(slicerMeta.years, slicerMeta.months);
+  }
+  
+  if (navigator.onLine) {
+    try {
+      // Fetch both in parallel
+      const [res, meta] = await Promise.all([
+        apiCall('overdue', { cifId: currentCIF }),
+        apiCall('slicerOptions', { cifId: currentCIF })
+      ]);
+      
+      localStorage.setItem(overdueKey, JSON.stringify(res));
+      localStorage.setItem(slicerKey, JSON.stringify(meta));
+      
+      renderOverdueDetails(res);
+      slicerMeta = meta;
+      renderFilters(meta.years, meta.months);
+      
+      // Auto-apply filters for default "ALL" selections (if Nepali pane is visible)
+      if (!document.getElementById('pane-nepali').classList.contains('hidden')) {
+        applySlicer();
       }
-    } else {
+    } catch (e) {
+      console.error('Insights fetch error:', e);
+      if (!cachedOverdue) alert('Unable to load insights. Check connection.');
+    } finally {
       toggleLoader(false);
-      if (!cachedOverdue) alert('Offline and no cached data');
     }
+  } else {
+    toggleLoader(false);
+    if (!cachedOverdue) alert('Offline and no cached insights.');
+  }
+}
+
+function renderFilters(years, months) {
+  const yrContainer = document.getElementById('year-chips');
+  const moContainer = document.getElementById('month-chips');
+  if (!yrContainer || !moContainer) return;
+  
+  let yrHtml = `<label><input type="checkbox" class="check-chip yr-chip" value="ALL" checked onchange="toggleAllYears(this)"><div class="chip-label">ALL</div></label>`;
+  if (years && years.length) {
+    years.forEach(y => yrHtml += `<label><input type="checkbox" class="check-chip yr-chip sub-yr" value="${y}" checked><div class="chip-label">${y}</div></label>`);
+  }
+  yrContainer.innerHTML = yrHtml;
+  
+  if (months && months.length) {
+    moContainer.innerHTML = months.map(m => 
+      `<label><input type="checkbox" class="check-chip mn-chip" value="${m}" checked><div class="chip-label">${m}</div></label>`
+    ).join('');
+  } else {
+    moContainer.innerHTML = '<div style="padding:10px;">No monthly data</div>';
+  }
+}
+
+function toggleAllYears(allCheck) {
+  document.querySelectorAll('.sub-yr').forEach(cb => cb.checked = allCheck.checked);
+}
+
+async function applySlicer() {
+  const yearChips = document.querySelectorAll('.yr-chip:checked');
+  const monthChips = document.querySelectorAll('.mn-chip:checked');
+  
+  if (!yearChips.length || !monthChips.length) {
+    console.warn('No filters selected');
+    return;
   }
   
-  async function loadSlicerOptions() {
-    const key = 'slicerOptions_' + currentCIF;
-    const cached = localStorage.getItem(key);
-    if (cached) {
-      slicerMeta = JSON.parse(cached);
-      renderFilters(slicerMeta.years, slicerMeta.months);
+  const checkedYears = Array.from(yearChips).map(i => i.value);
+  const checkedMonths = Array.from(monthChips).map(i => i.value);
+  
+  // Show loading state on button
+  const btn = document.querySelector('#pane-nepali button');
+  const originalText = btn.innerText;
+  btn.innerText = 'Loading...';
+  btn.disabled = true;
+  
+  const cacheKey = `slicer_${currentCIF}_${checkedYears.join(',')}_${checkedMonths.join(',')}`;
+  const cached = localStorage.getItem(cacheKey);
+  if (cached) {
+    renderSlicerSummary(JSON.parse(cached));
+  }
+  
+  if (navigator.onLine) {
+    try {
+      const d = await apiCall('slicerSummary', { 
+        cifId: currentCIF, 
+        years: checkedYears, 
+        months: checkedMonths 
+      });
+      localStorage.setItem(cacheKey, JSON.stringify(d));
+      renderSlicerSummary(d);
+    } catch (e) {
+      console.error('Slicer summary error:', e);
+      if (!cached) alert('Failed to apply filters. Check console for details.');
+    } finally {
+      btn.innerText = originalText;
+      btn.disabled = false;
     }
+  } else {
+    btn.innerText = originalText;
+    btn.disabled = false;
+    if (!cached) alert('Offline and filter results not cached.');
   }
+}
+
+function renderSlicerSummary(d) {
+  const tbody = document.getElementById('body-nepali');
+  const tfoot = document.getElementById('foot-nepali');
+  if (!tbody || !tfoot) return;
   
-  function renderFilters(years, months) {
-    const yrContainer = document.getElementById('year-chips');
-    const moContainer = document.getElementById('month-chips');
-    if (!yrContainer || !moContainer) return;
-    
-    let yrHtml = `<label><input type="checkbox" class="check-chip yr-chip" value="ALL" checked onchange="toggleAllYears(this)"><div class="chip-label">ALL</div></label>`;
-    if (years) years.forEach(y => yrHtml += `<label><input type="checkbox" class="check-chip yr-chip sub-yr" value="${y}" checked><div class="chip-label">${y}</div></label>`);
-    yrContainer.innerHTML = yrHtml;
-    
-    if (months && months.length) {
-      moContainer.innerHTML = months.map(m => `<label><input type="checkbox" class="check-chip mn-chip" value="${m}" checked><div class="chip-label">${m}</div></label>`).join('');
-    } else {
-      moContainer.innerHTML = '<div style="padding:10px;">No monthly data</div>';
-    }
-  }
+  let t_ovd = 0, t_i = 0, t_p = 0, t_pen = 0;
+  tbody.innerHTML = d.map(r => {
+    t_ovd += r.TOT_OVD_AMT || 0;
+    t_i += r.I_OVD || 0;
+    t_p += r.P_OVD || 0;
+    t_pen += r.PENAL_INT || 0;
+    return `<tr><td>${r.NEPALI_OVD_Month}</td><td>${fAmt(r.TOT_OVD_AMT)}</td><td>${fAmt(r.I_OVD)}</td><td>${fAmt(r.P_OVD)}</td><td>${fAmt(r.PENAL_INT)}</td></tr>`;
+  }).join('');
+  tfoot.innerHTML = `<tr><td>TOTAL</td><td>${fAmt(t_ovd)}</td><td>${fAmt(t_i)}</td><td>${fAmt(t_p)}</td><td>${fAmt(t_pen)}</td></tr>`;
+}
+
+function renderOverdueDetails(res) {
+  const tbody = document.getElementById('body-daily');
+  const tfoot = document.getElementById('foot-daily');
+  if (!tbody || !tfoot) return;
   
-  function toggleAllYears(allCheck) {
-    document.querySelectorAll('.sub-yr').forEach(cb => cb.checked = allCheck.checked);
-  }
+  tbody.innerHTML = res.rows.map(r => 
+    `<tr><td>${r.OVD_DATE}</td><td>${fAmt(r.TOT_OVD_AMT)}</td><td>${fAmt(r.I_OVD)}</td><td>${fAmt(r.P_OVD)}</td><td>${fAmt(r.PENAL_INT)}</td></tr>`
+  ).join('');
+  tfoot.innerHTML = `<tr><td>TOTAL</td><td>${fAmt(res.total.TOT_OVD_AMT)}</td><td>${fAmt(res.total.I_OVD)}</td><td>${fAmt(res.total.P_OVD)}</td><td>${fAmt(res.total.PENAL_INT)}</td></tr>`;
+}
+
+function switchTab(t) {
+  document.getElementById('pane-daily').classList.toggle('hidden', t !== 'daily');
+  document.getElementById('pane-nepali').classList.toggle('hidden', t !== 'nepali');
+  document.getElementById('tab-daily').classList.toggle('active', t === 'daily');
+  document.getElementById('tab-nepali').classList.toggle('active', t === 'nepali');
   
-  async function applySlicer() {
-    const yearChips = document.querySelectorAll('.yr-chip:checked');
-    const monthChips = document.querySelectorAll('.mn-chip:checked');
-    if (!yearChips.length || !monthChips.length) return;
-    
-    const checkedYears = Array.from(yearChips).map(i => i.value);
-    const checkedMonths = Array.from(monthChips).map(i => i.value);
-    
-    const key = `slicer_${currentCIF}_${checkedYears.join(',')}_${checkedMonths.join(',')}`;
-    const cached = localStorage.getItem(key);
-    if (cached) renderSlicerSummary(JSON.parse(cached));
-    
-    if (navigator.onLine) {
-      try {
-        const d = await apiCall('slicerSummary', { cifId: currentCIF, years: checkedYears, months: checkedMonths });
-        localStorage.setItem(key, JSON.stringify(d));
-        renderSlicerSummary(d);
-      } catch (e) {
-        if (!cached) alert('Failed to load filter results');
-      }
-    } else if (!cached) {
-      alert('Offline and filter results not cached');
-    }
+  // When switching to Nepali tab, automatically apply filters (with cached options)
+  if (t === 'nepali' && slicerMeta) {
+    applySlicer();
   }
-  
-  function renderSlicerSummary(d) {
-    let t_ovd = 0, t_i = 0, t_p = 0, t_pen = 0;
-    const tbody = document.getElementById('body-nepali');
-    const tfoot = document.getElementById('foot-nepali');
-    tbody.innerHTML = d.map(r => {
-      t_ovd += r.TOT_OVD_AMT || 0;
-      t_i += r.I_OVD || 0;
-      t_p += r.P_OVD || 0;
-      t_pen += r.PENAL_INT || 0;
-      return `<tr><td>${r.NEPALI_OVD_Month}</td><td>${fAmt(r.TOT_OVD_AMT)}</td><td>${fAmt(r.I_OVD)}</td><td>${fAmt(r.P_OVD)}</td><td>${fAmt(r.PENAL_INT)}</td></tr>`;
-    }).join('');
-    tfoot.innerHTML = `<tr><td>TOTAL</td><td>${fAmt(t_ovd)}</td><td>${fAmt(t_i)}</td><td>${fAmt(t_p)}</td><td>${fAmt(t_pen)}</td></tr>`;
-  }
-  
-  function renderOverdueDetails(res) {
-    const tbody = document.getElementById('body-daily');
-    const tfoot = document.getElementById('foot-daily');
-    tbody.innerHTML = res.rows.map(r => `<tr><td>${r.OVD_DATE}</td><td>${fAmt(r.TOT_OVD_AMT)}</td><td>${fAmt(r.I_OVD)}</td><td>${fAmt(r.P_OVD)}</td><td>${fAmt(r.PENAL_INT)}</td></tr>`).join('');
-    tfoot.innerHTML = `<tr><td>TOTAL</td><td>${fAmt(res.total.TOT_OVD_AMT)}</td><td>${fAmt(res.total.I_OVD)}</td><td>${fAmt(res.total.P_OVD)}</td><td>${fAmt(res.total.PENAL_INT)}</td></tr>`;
-  }
-  
-  function switchTab(t) {
-    document.getElementById('pane-daily').classList.toggle('hidden', t !== 'daily');
-    document.getElementById('pane-nepali').classList.toggle('hidden', t !== 'nepali');
-    document.getElementById('tab-daily').classList.toggle('active', t === 'daily');
-    document.getElementById('tab-nepali').classList.toggle('active', t === 'nepali');
-    if (t === 'nepali') applySlicer(); // Auto-apply when switching to Nepali tab
-  }
+}
 
   // ========== SHARE & REMINDER (UNCHANGED) ==========
   function getAccountShareText() { return `Account Name: ${window.currentCustomer?.name || 'N/A'}\nAccount No.: ${window.currentCustomer?.account || 'N/A'}\nBank: NIC ASIA Bank Limited`; }
