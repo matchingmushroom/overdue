@@ -15,7 +15,7 @@
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
   
   <style>
-    /* ====== EXISTING STYLES UNCHANGED ====== */
+    /* ====== EXISTING STYLES (UNCHANGED) ====== */
     * {
       box-sizing: border-box;
       -webkit-tap-highlight-color: transparent;
@@ -852,7 +852,10 @@
 
 <main>
   <div id="view-search" class="view">
-    <div style="padding:24px 20px 12px 20px;"><input type="text" id="searchInp" class="search-input" placeholder="🔍 Search by customer name or CIF..."></div>
+    <!-- Existing Search Bar (Unchanged) -->
+    <div style="padding:24px 20px 12px 20px;">
+      <input type="text" id="searchInp" class="search-input" placeholder="🔍 Search by customer name or CIF...">
+    </div>
     <div id="results" class="content"></div>
 
     <!-- ===== NEW: Relationship & Category Slicer ===== -->
@@ -896,6 +899,7 @@
   </div>
 
   <div id="view-detail" class="view hidden">
+    <!-- Existing Detail View (Unchanged) -->
     <div class="content" style="padding-top:24px;">
       <div class="customer-header">
         <div class="header-left">
@@ -1184,7 +1188,7 @@
       callBackend('preload').then(() => console.log("Cache pre-warmed")).catch(() => console.warn("Pre-cache skipped"));
     }
     loadCustomerList();
-    initCategoryFilters();  // NEW
+    initCategoryFilters();  // NEW: initialize slicer & table
   };
   
   function loadCustomerList() {
@@ -1271,7 +1275,7 @@
     if(v === 'detail') loadDetails();
     if(v === 'group') loadGroupDetails();
     if(v === 'insights') loadInsights();
-    if(v === 'search') loadCategoryTable();  // NEW: load table when returning to search
+    if(v === 'search') loadCategoryTable();  // NEW: reload table when returning to search
   }
   
   function loadDetails() {
