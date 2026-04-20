@@ -810,6 +810,33 @@
       margin-left: 8px;
       display: inline-block;
     }
+
+    /* ----- NEW: Category Table & Filters ----- */
+    .cat-chip {
+      background: #F0F4FA;
+      border: 1px solid transparent;
+      padding: 10px 20px;
+      border-radius: 40px;
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: var(--transition);
+    }
+    .cat-chip.active {
+      background: var(--primary);
+      color: white;
+      box-shadow: 0 4px 12px rgba(26, 59, 92, 0.3);
+    }
+    .filter-select {
+      padding: 10px 16px;
+      border-radius: 40px;
+      border: 1px solid var(--border-light);
+      background: white;
+      font-weight: 500;
+      font-size: 14px;
+      color: var(--text-primary);
+    }
   </style>
 </head>
 <body>
@@ -827,6 +854,45 @@
   <div id="view-search" class="view">
     <div style="padding:24px 20px 12px 20px;"><input type="text" id="searchInp" class="search-input" placeholder="🔍 Search by customer name or CIF..."></div>
     <div id="results" class="content"></div>
+
+    <!-- ===== NEW: Relationship & Category Slicer ===== -->
+    <div style="padding:0 20px 8px 20px;">
+      <label style="font-weight:600; font-size:13px; color:var(--text-secondary); margin-right:12px;">Relationship:</label>
+      <select id="relationshipFilter" class="filter-select">
+        <option value="ALL" selected>All</option>
+        <option value="Branch">Branch</option>
+        <option value="LRD">LRD</option>
+      </select>
+    </div>
+
+    <div style="padding:8px 20px 16px 20px; display:flex; flex-wrap:wrap; gap:8px;">
+      <button class="cat-chip active" data-cat="ALL">ALL</button>
+      <button class="cat-chip" data-cat="NPA">NPA</button>
+      <button class="cat-chip" data-cat="WL">WL</button>
+      <button class="cat-chip" data-cat="PWL">PWL</button>
+      <button class="cat-chip" data-cat="PNPA">PNPA</button>
+      <button class="cat-chip" data-cat="PASS">Pass</button>
+    </div>
+
+    <div class="table-wrapper" style="margin:0 20px 20px 20px; width:auto;">
+      <table id="categoryCustomerTable">
+        <thead>
+          <tr>
+            <th style="width:50px;">SN</th>
+            <th style="cursor:pointer;" onclick="sortTableBy('name')">Customer Name <span id="sortNameIcon">↕</span></th>
+            <th style="cursor:pointer;" onclick="sortTableBy('limit')">Limit (Outstanding) <span id="sortLimitIcon">↕</span></th>
+          </tr>
+        </thead>
+        <tbody id="categoryTableBody"></tbody>
+      </table>
+    </div>
+
+    <div id="paginationControls" style="display:flex; justify-content:center; gap:16px; padding:16px 20px;">
+      <button id="prevPageBtn" onclick="changePage(-1)" disabled>← Prev</button>
+      <span id="pageInfo">Page 1</span>
+      <button id="nextPageBtn" onclick="changePage(1)">Next →</button>
+    </div>
+    <!-- ===== END NEW SECTION ===== -->
   </div>
 
   <div id="view-detail" class="view hidden">
@@ -1118,6 +1184,7 @@
       callBackend('preload').then(() => console.log("Cache pre-warmed")).catch(() => console.warn("Pre-cache skipped"));
     }
     loadCustomerList();
+    initCategoryFilters();  // NEW
   };
   
   function loadCustomerList() {
@@ -1204,6 +1271,7 @@
     if(v === 'detail') loadDetails();
     if(v === 'group') loadGroupDetails();
     if(v === 'insights') loadInsights();
+    if(v === 'search') loadCategoryTable();  // NEW: load table when returning to search
   }
   
   function loadDetails() {
@@ -1510,6 +1578,107 @@
     document.getElementById('pane-nepali').classList.toggle('hidden', t !== 'nepali'); 
     document.getElementById('tab-daily').classList.toggle('active', t === 'daily'); 
     document.getElementById('tab-nepali').classList.toggle('active', t === 'nepali'); 
+  }
+
+  // ========== NEW: CATEGORY TABLE WITH RELATIONSHIP FILTER ==========
+  let currentCategory = 'ALL';
+  let currentSortBy = 'name';
+  let currentSortOrder = 'asc';
+  let currentPage = 1;
+  const pageSize = 10;
+  let totalPages = 1;
+
+  function initCategoryFilters() {
+    const chips = document.querySelectorAll('.cat-chip');
+    chips.forEach(chip => {
+      chip.addEventListener('click', () => {
+        chips.forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+        currentCategory = chip.dataset.cat;
+        currentPage = 1;
+        loadCategoryTable();
+      });
+    });
+
+    document.getElementById('relationshipFilter').addEventListener('change', () => {
+      currentPage = 1;
+      loadCategoryTable();
+    });
+
+    // Initial load
+    loadCategoryTable();
+  }
+
+  function loadCategoryTable() {
+    const relationship = document.getElementById('relationshipFilter').value;
+    toggleLoader(true);
+    callBackend('customersByCategory', {
+      category: currentCategory,
+      relationship: relationship,
+      sortBy: currentSortBy,
+      sortOrder: currentSortOrder,
+      page: currentPage,
+      pageSize: pageSize
+    }).then(data => {
+      toggleLoader(false);
+      renderCategoryTable(data);
+      totalPages = data.totalPages;
+      updatePaginationControls();
+    }).catch(err => {
+      toggleLoader(false);
+      console.error('Failed to load category table', err);
+      alert('Error loading table. Please try again.');
+    });
+  }
+
+  function renderCategoryTable(data) {
+    const tbody = document.getElementById('categoryTableBody');
+    if (!data.customers || data.customers.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:24px;">No customers found</td></tr>';
+      return;
+    }
+    let html = '';
+    data.customers.forEach((cust, index) => {
+      const sn = (data.page - 1) * data.pageSize + index + 1;
+      html += `<tr>
+        <td>${sn}</td>
+        <td style="cursor:pointer; font-weight:600;" onclick="goToCustomerDetail('${cust.cifId}')">${cust.name}</td>
+        <td>${fAmt(cust.limit)}</td>
+      </tr>`;
+    });
+    tbody.innerHTML = html;
+  }
+
+  function goToCustomerDetail(cifId) {
+    currentCIF = cifId;
+    navTo('detail');
+  }
+
+  function sortTableBy(field) {
+    if (currentSortBy === field) {
+      currentSortOrder = currentSortOrder === 'asc' ? 'desc' : 'asc';
+    } else {
+      currentSortBy = field;
+      currentSortOrder = 'asc';
+    }
+    document.getElementById('sortNameIcon').innerHTML = (currentSortBy === 'name') ? (currentSortOrder === 'asc' ? '↑' : '↓') : '↕';
+    document.getElementById('sortLimitIcon').innerHTML = (currentSortBy === 'limit') ? (currentSortOrder === 'asc' ? '↑' : '↓') : '↕';
+    currentPage = 1;
+    loadCategoryTable();
+  }
+
+  function changePage(delta) {
+    const newPage = currentPage + delta;
+    if (newPage >= 1 && newPage <= totalPages) {
+      currentPage = newPage;
+      loadCategoryTable();
+    }
+  }
+
+  function updatePaginationControls() {
+    document.getElementById('pageInfo').innerText = `Page ${currentPage} of ${totalPages}`;
+    document.getElementById('prevPageBtn').disabled = (currentPage === 1);
+    document.getElementById('nextPageBtn').disabled = (currentPage === totalPages);
   }
 </script>
 </body>
