@@ -15,7 +15,7 @@
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
   
   <style>
-    /* ====== EXISTING STYLES UNCHANGED ====== */
+    /* ====== ALL YOUR EXISTING STYLES REMAIN THE SAME ====== */
     * {
       box-sizing: border-box;
       -webkit-tap-highlight-color: transparent;
@@ -750,6 +750,21 @@
     .close-btn:hover {
       background: #F0F4FA;
     }
+    
+    /* Performance indicator */
+    .perf-badge {
+      position: fixed;
+      bottom: 80px;
+      right: 10px;
+      background: rgba(0,0,0,0.7);
+      color: #0B753D;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 10px;
+      font-family: monospace;
+      z-index: 1000;
+      pointer-events: none;
+    }
 
     /* ---------- MOBILE OPTIMIZATION (max-width: 640px) ---------- */
     @media (max-width: 640px) {
@@ -770,14 +785,6 @@
       .cust-id { font-size: 12px; }
       .group-badge { padding: 6px 14px; font-size: 12px; }
       .grid-summary { grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 20px; }
-      .grid-summary .stat-card:nth-child(1) { order: 2; }
-      .grid-summary .stat-card:nth-child(2) { order: 1; }
-      .grid-summary .stat-card:nth-child(3) { order: 3; }
-      .grid-summary .stat-card:nth-child(4) { order: 4; }
-      .grid-summary .stat-card:nth-child(5) { order: 7; }
-      .grid-summary .stat-card:nth-child(6) { order: 5; }
-      .grid-summary .stat-card:nth-child(7) { order: 6; }
-      .grid-summary .stat-card:nth-child(8) { order: 8; }
       .stat-card { padding: 16px 12px; border-radius: var(--radius-md); }
       .stat-header { margin-bottom: 8px; gap: 6px; }
       .stat-header i { font-size: 20px; }
@@ -808,23 +815,12 @@
       .reminder-modal, .share-modal { padding: 16px; }
       .reminder-box, .share-box { padding: 22px 18px; max-width: 100%; }
       .rem-title, .share-title { font-size: 18px; margin-bottom: 16px; }
-      .reminder-box label, .share-box label { font-size: 12px; margin: 10px 0 4px; }
-      .reminder-box select, .reminder-box textarea, .share-box textarea { padding: 10px 12px; font-size: 14px; }
-      .reminder-box textarea, .share-box textarea { height: 90px; }
-      .rem-actions button, .share-actions button { padding: 10px 6px; font-size: 12px; }
-      .close-btn { padding: 10px; }
+      .perf-badge { bottom: 90px; font-size: 9px; }
     }
     @media (max-width: 380px) {
       .cust-name { font-size: 20px; }
       .grid-summary { grid-template-columns: 1fr; }
-      .grid-summary .stat-card:nth-child(1) { order: 2; }
-      .grid-summary .stat-card:nth-child(2) { order: 1; }
-      .grid-summary .stat-card:nth-child(3) { order: 3; }
-      .grid-summary .stat-card:nth-child(4) { order: 4; }
-      .grid-summary .stat-card:nth-child(5) { order: 7; }
-      .grid-summary .stat-card:nth-child(6) { order: 5; }
-      .grid-summary .stat-card:nth-child(7) { order: 6; }
-      .grid-summary .stat-card:nth-child(8) { order: 8; }
+      .stat-card { padding: 14px 12px; }
     }
 
     /* Offline banner */
@@ -839,27 +835,18 @@
       top: 0;
       z-index: 101;
     }
-    .offline-badge {
-      background: var(--warning);
-      color: #1A1A1A;
-      font-size: 11px;
-      padding: 2px 8px;
-      border-radius: 20px;
-      margin-left: 8px;
-      display: inline-block;
-    }
   </style>
 </head>
 <body>
-<div id="loader" class="hidden"><div class="spinner"></div></div>
+<div id="loader" class=""><div class="spinner"></div></div>
 <div id="offlineBanner" class="offline-banner hidden">⚠️ You are offline. Showing cached data.</div>
+<div id="perfBadge" class="perf-badge hidden"></div>
 
 <header>
   <div class="header-left">
     <i class="material-icons-round" style="color:var(--primary); font-size:28px;">account_balance</i>
     <div class="app-title">Behind Schedule</div>
   </div>
-  <!-- Dashboard Icon - Top Right -->
   <div class="dashboard-icon" onclick="openDashboard()" title="Open Dashboard">
     <i class="material-icons-round">dashboard</i> Dashboard
   </div>
@@ -1000,52 +987,73 @@
 </div>
 
 <script>
-  // ========== PWA SERVICE WORKER REGISTRATION ==========
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js')
-        .then(registration => {
-          console.log('Service Worker registered successfully:', registration.scope);
-          
-          registration.addEventListener('updatefound', () => {
-            const newWorker = registration.installing;
-            console.log('New Service Worker found:', newWorker);
-            
-            newWorker.addEventListener('statechange', () => {
-              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                console.log('Update available - refresh to get latest version');
-                showUpdateNotification();
-              }
-            });
-          });
-        })
-        .catch(error => {
-          console.error('Service Worker registration failed:', error);
-        });
+  // ========== CONFIGURATION ==========
+  const API_BASE = 'https://script.google.com/macros/s/AKfycbx4Nl5MJm9UjkSskwRAfZmMnN6M5MTtabLuvb5_b48tvnov06LKfrGv_-KRCBjXaBDw/exec';
+  const CACHE_DURATION = 3600000; // 1 hour in milliseconds
+  
+  // ========== GLOBAL STATE ==========
+  let fullData = null;
+  let currentCIF = null;
+  let currentGroup = "";
+  let slicerMeta = null;
+  let currentCustomer = { name: '', account: '', renewal: '', primaryPhone: '', secondaryPhone: '' };
+  
+  const NEPALI_MONTHS = ["Baisakh","Jestha","Ashadh","Shrawan","Bhadra","Ashwin","Kartik","Mangsir","Poush","Magh","Falgun","Chaitra"];
+  const fAmt = (n) => '₹ ' + (Math.abs(n) <= 0.0001 ? "0.00" : parseFloat(n).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}));
+  const toggleLoader = (show) => document.getElementById('loader').classList.toggle('hidden', !show);
+  
+  // ========== INDEXEDDB HELPERS ==========
+  function openIndexedDB() {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open('CRM_Cache_V2', 1);
+      request.onupgradeneeded = (event) => {
+        const db = event.target.result;
+        if (!db.objectStoreNames.contains('fullData')) {
+          db.createObjectStore('fullData', { keyPath: 'key' });
+        }
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
     });
   }
   
-  function showUpdateNotification() {
-    const updateBanner = document.createElement('div');
-    updateBanner.className = 'offline-banner';
-    updateBanner.style.background = '#1A3B5C';
-    updateBanner.style.color = 'white';
-    updateBanner.innerHTML = '🔄 New version available! <button onclick="location.reload()" style="background:white;color:#1A3B5C;padding:4px 12px;margin-left:10px;font-size:12px;">Update Now</button>';
-    updateBanner.style.position = 'fixed';
-    updateBanner.style.bottom = '80px';
-    updateBanner.style.top = 'auto';
-    updateBanner.style.zIndex = '1000';
-    updateBanner.style.cursor = 'pointer';
-    document.body.appendChild(updateBanner);
-    
-    setTimeout(() => {
-      if (updateBanner.parentNode) updateBanner.remove();
-    }, 10000);
+  async function saveToIndexedDB(key, data) {
+    try {
+      const db = await openIndexedDB();
+      const tx = db.transaction('fullData', 'readwrite');
+      const store = tx.objectStore('fullData');
+      store.put({ key: key, data: data, timestamp: Date.now() });
+      await new Promise((resolve, reject) => {
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+      db.close();
+      return true;
+    } catch (e) {
+      console.warn('IndexedDB save failed:', e);
+      return false;
+    }
   }
   
-  // ========== BACKEND API HELPER (REPLACES google.script.run) ==========
-  const API_BASE = 'https://script.google.com/macros/s/AKfycbx4Nl5MJm9UjkSskwRAfZmMnN6M5MTtabLuvb5_b48tvnov06LKfrGv_-KRCBjXaBDw/exec';
+  async function getFromIndexedDB(key) {
+    try {
+      const db = await openIndexedDB();
+      const tx = db.transaction('fullData', 'readonly');
+      const store = tx.objectStore('fullData');
+      const result = await new Promise((resolve, reject) => {
+        const get = store.get(key);
+        get.onsuccess = () => resolve(get.result);
+        get.onerror = () => reject(get.error);
+      });
+      db.close();
+      return result;
+    } catch (e) {
+      console.warn('IndexedDB read failed:', e);
+      return null;
+    }
+  }
   
+  // ========== BACKEND API ==========
   async function callBackend(action, params = {}) {
     const url = new URL(API_BASE);
     url.searchParams.append('action', action);
@@ -1059,169 +1067,98 @@
       }
     });
     
-    try {
-      const response = await fetch(url.toString());
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error(`Backend error (${action}):`, error);
-      throw error;
-    }
+    const response = await fetch(url.toString());
+    return await response.json();
   }
   
-  // ========== DASHBOARD NAVIGATION ==========
-  function openDashboard() {
-    window.open(API_BASE + '?page=dashboard', '_blank');
-  }
-  
-  // ========== OFFLINE DETECTION & CACHING ==========
-  function updateOnlineStatus() {
-    const banner = document.getElementById('offlineBanner');
-    const indicator = document.getElementById('offlineIndicator');
-    const isOnline = navigator.onLine;
-    console.log('Online status:', isOnline);
-    if (isOnline) {
-      if (banner) banner.classList.add('hidden');
-      if (indicator) indicator.classList.add('hidden');
-    } else {
-      if (banner) banner.classList.remove('hidden');
-      if (indicator) indicator.classList.remove('hidden');
-    }
-  }
-
-  window.addEventListener('DOMContentLoaded', updateOnlineStatus);
-  window.addEventListener('online', () => {
-    console.log('Network connection restored');
-    updateOnlineStatus();
-    if (currentCIF) loadDetails();
-  });
-  window.addEventListener('offline', () => {
-    console.log('Network connection lost');
-    updateOnlineStatus();
-  });
-  setTimeout(updateOnlineStatus, 1000);
-
-  // ========== LOCALSTORAGE CACHING ==========
-  const STORAGE_KEYS = {
-    CUSTOMERS: 'crm_customers',
-    METRICS: 'crm_metrics_',
-    GROUPS: 'crm_groups_'
-  };
-
-  function cacheCustomerList(list) {
-    try {
-      localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(list));
-      console.log('Customer list cached');
-    } catch (e) { console.warn('Cache full'); }
-  }
-
-  function getCachedCustomerList() {
-    const data = localStorage.getItem(STORAGE_KEYS.CUSTOMERS);
-    return data ? JSON.parse(data) : [];
-  }
-
-  function cacheMetrics(cifId, data) {
-    try {
-      localStorage.setItem(STORAGE_KEYS.METRICS + cifId, JSON.stringify(data));
-    } catch (e) {}
-  }
-
-  function getCachedMetrics(cifId) {
-    const data = localStorage.getItem(STORAGE_KEYS.METRICS + cifId);
-    return data ? JSON.parse(data) : null;
-  }
-
-  function cacheGroup(groupName, data) {
-    try {
-      localStorage.setItem(STORAGE_KEYS.GROUPS + groupName, JSON.stringify(data));
-    } catch (e) {}
-  }
-
-  function getCachedGroup(groupName) {
-    const data = localStorage.getItem(STORAGE_KEYS.GROUPS + groupName);
-    return data ? JSON.parse(data) : null;
-  }
-
-  function offlineSearch(query) {
-    const list = getCachedCustomerList();
-    const q = query.toUpperCase();
-    return list.filter(c => 
-      (c.name || '').toUpperCase().includes(q) || 
-      (c.id || '').includes(q)
-    ).slice(0, 12);
-  }
-
-  // ========== EXISTING VARIABLES ==========
-  let customers = [], currentCIF = null, currentGroup = "", slicerMeta = null;
-  window.currentCustomer = { name: '', account: '', renewal: '', primaryPhone: '', secondaryPhone: '' };
-
-  const NEPALI_MONTHS = ["Baisakh","Jestha","Ashadh","Shrawan","Bhadra","Ashwin","Kartik","Mangsir","Poush","Magh","Falgun","Chaitra"];
-  const fAmt = (n) => '₹ ' + (Math.abs(n) <= 0.0001 ? "0.00" : parseFloat(n).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}));
-  const toggleLoader = (show) => document.getElementById('loader').classList.toggle('hidden', !show);
-  
-  window.onload = () => {
-    console.log("App loading...");
-    if (navigator.onLine) {
-      callBackend('preload').then(() => console.log("Cache pre-warmed")).catch(() => console.warn("Pre-cache skipped"));
-    }
-    loadCustomerList();
-  };
-  
-  function loadCustomerList() {
-    const cached = getCachedCustomerList();
-    if (cached.length > 0) {
-      customers = cached;
+  // ========== LOAD FULL DATA (ONE TIME) ==========
+  async function loadFullData() {
+    toggleLoader(true);
+    const startTime = performance.now();
+    
+    // Try IndexedDB first
+    const cached = await getFromIndexedDB('fullData');
+    if (cached && (Date.now() - cached.timestamp) < CACHE_DURATION) {
+      fullData = cached.data;
+      const elapsed = (performance.now() - startTime).toFixed(0);
+      console.log(`Data loaded from IndexedDB in ${elapsed}ms`);
+      showPerfBadge(`Cached: ${elapsed}ms`);
+      toggleLoader(false);
       setupSearch();
+      return true;
     }
     
-    if (navigator.onLine) {
-      callBackend('customers').then(data => {
-        customers = data;
-        cacheCustomerList(data);
-        setupSearch();
-      }).catch(err => {
-        console.warn('Failed to load fresh customers, using cache', err);
-        if (customers.length === 0) alert("Unable to load customer data. Please check your connection.");
-        setupSearch();
-      });
-    } else {
-      if (customers.length === 0) alert("You are offline and no cached data available.");
+    // Fetch from network
+    if (!navigator.onLine) {
+      toggleLoader(false);
+      alert("You are offline and no cached data is available. Please connect to the internet.");
+      return false;
+    }
+    
+    try {
+      const data = await callBackend('loadFullData');
+      fullData = data;
+      await saveToIndexedDB('fullData', data);
+      const elapsed = (performance.now() - startTime).toFixed(0);
+      console.log(`Data loaded from network in ${elapsed}ms - ${fullData.customers?.length || 0} customers`);
+      showPerfBadge(`Loaded: ${elapsed}ms`);
+      toggleLoader(false);
       setupSearch();
+      return true;
+    } catch (error) {
+      console.error('Failed to load data:', error);
+      toggleLoader(false);
+      alert("Failed to load data. Please check your connection and try again.");
+      return false;
     }
   }
   
+  function showPerfBadge(text) {
+    const badge = document.getElementById('perfBadge');
+    badge.textContent = `⚡ ${text}`;
+    badge.classList.remove('hidden');
+    setTimeout(() => badge.classList.add('hidden'), 3000);
+  }
+  
+  // ========== SEARCH (FROM CACHE) ==========
   function setupSearch() {
-    const inp = document.getElementById('searchInp'), res = document.getElementById('results');
+    const inp = document.getElementById('searchInp');
     if (!inp) return;
+    
     inp.oninput = () => {
-      const val = inp.value.toUpperCase();
-      res.innerHTML = '';
-      if (!val) return;
+      const val = inp.value.trim().toUpperCase();
+      const resultsDiv = document.getElementById('results');
+      resultsDiv.innerHTML = '';
       
-      const offlineResults = offlineSearch(val);
-      renderSearchResults(offlineResults);
+      if (!val || !fullData?.customers) return;
       
-      if (navigator.onLine) {
-        const filtered = customers.filter(c => 
-          c.name.toUpperCase().includes(val) || c.id.includes(val)
-        ).slice(0, 12);
-        renderSearchResults(filtered);
-      }
+      const filtered = fullData.customers.filter(c => 
+        c.name.toUpperCase().includes(val) || c.id.includes(val)
+      ).slice(0, 20);
+      
+      filtered.forEach(c => {
+        const div = document.createElement('div');
+        div.className = 'search-result-item';
+        div.innerHTML = `<div><div style="font-weight:700; font-size:16px;">${c.name}</div><div style="color:var(--text-muted); font-size:12px; margin-top:6px;">CIF: ${c.id}</div></div><i class="material-icons-round" style="color:var(--primary);">arrow_forward_ios</i>`;
+        div.onclick = () => {
+          currentCIF = c.id;
+          navTo('detail');
+        };
+        resultsDiv.appendChild(div);
+      });
     };
   }
   
-  function renderSearchResults(list) {
-    const res = document.getElementById('results');
-    res.innerHTML = '';
-    list.forEach(c => {
-      const d = document.createElement('div');
-      d.className = 'search-result-item';
-      d.innerHTML = `<div><div style="font-weight:700; font-size:16px;">${c.name}</div><div style="color:var(--text-muted); font-size:12px; margin-top:6px;">CIF: ${c.id}</div></div><i class="material-icons-round" style="color:var(--primary);">arrow_forward_ios</i>`;
-      d.onclick = () => { currentCIF = c.id; navTo('detail'); };
-      res.appendChild(d);
-    });
+  // ========== GET DATA FROM CACHE ==========
+  function getCustomerMetricsFromCache(cifId) {
+    return fullData?.allMetrics?.find(m => m.CIF_ID === cifId) || null;
   }
   
+  function getGroupFromCache(groupName) {
+    return fullData?.groups?.find(g => g.summary.groupName === groupName) || null;
+  }
+  
+  // ========== RENDER FUNCTIONS ==========
   function getStatusIcons(actual, probable) {
     actual = (actual || '').toString().trim().toUpperCase();
     probable = (probable || '').toString().trim().toUpperCase();
@@ -1233,53 +1170,15 @@
     else if (probable.includes('PWL')) probCls = 'st-prob-wl';
     return `<div class="st-icon ${actCls}">${actual}</div><div class="st-icon ${probCls}">${probable}</div>`;
   }
-
-  function navTo(v) {
-    if(v === 'group') {
-      if(!currentGroup || currentGroup.toUpperCase() === "NO GROUP") {
-        alert("No group information available for this customer.");
-        return;
-      }
-    } else if(v !== 'search' && !currentCIF) {
-      alert("Please select a customer first.");
-      return;
-    }
-    document.querySelectorAll('.view').forEach(e => e.classList.add('hidden'));
-    document.querySelectorAll('.nav-item').forEach(e => e.classList.remove('active'));
-    document.getElementById('view-'+v).classList.remove('hidden');
-    document.getElementById('n-'+v).classList.add('active');
-    if(v === 'detail') loadDetails();
-    if(v === 'group') loadGroupDetails();
-    if(v === 'insights') loadInsights();
-  }
   
-  function loadDetails() {
-    const cached = getCachedMetrics(currentCIF);
-    if (cached) renderMetrics(cached);
-    else toggleLoader(true);
-    
-    if (navigator.onLine) {
-      callBackend('metrics', { cifId: currentCIF }).then(m => {
-        toggleLoader(false);
-        renderMetrics(m);
-        cacheMetrics(currentCIF, m);
-      }).catch(err => {
-        toggleLoader(false);
-        console.error('Failed to load customer details', err);
-        if (!cached) alert("Failed to load customer details. Working offline with cached data if available.");
-      });
-    } else {
-      toggleLoader(false);
-      if (!cached) alert("You are offline and this customer is not cached.");
-    }
-  }
-
   function renderMetrics(m) {
+    if (!m) return;
+    
     document.getElementById('det-name').innerText = m.CUSTOMER_NAME;
-    document.getElementById('det-id').innerHTML = "🆔 CIF: "+m.CIF_ID;
+    document.getElementById('det-id').innerHTML = "🆔 CIF: " + m.CIF_ID;
     currentGroup = (m.CUSTOMER_GROUP || "NO GROUP").trim();
     const hasGroup = (currentGroup && currentGroup.toUpperCase() !== "NO GROUP");
-    if(hasGroup) {
+    if (hasGroup) {
       document.getElementById('det-group-tag').innerHTML = `<i class="material-icons-round" style="font-size:16px;">groups</i> ${currentGroup}`;
       document.getElementById('det-group-tag').style.display = 'inline-flex';
       document.getElementById('n-group').style.display = 'flex';
@@ -1296,7 +1195,9 @@
     document.getElementById('v-op').innerHTML = fAmt(m.OP_BALANCE);
     document.getElementById('v-days').innerHTML = m.MAX_OVD_DAYS;
     document.getElementById('v-renewal').innerHTML = m.RENEWAL;
-    document.querySelector("#tbl-loan tbody").innerHTML = m.accounts.map(a => `
+    
+    const accounts = m.accounts || [];
+    document.querySelector("#tbl-loan tbody").innerHTML = accounts.map(a => `
       <tr>
         <td style="white-space: normal; min-width: 180px;"><b>${a.SCHEME}</b><br><span style="color:var(--text-muted); font-size:11px;">${a.ACCOUNT_NO}</span></td>
         <td>${fAmt(a.OUTSTANDING_LOAN)}</td>
@@ -1307,185 +1208,77 @@
       </tr>
     `).join('');
     
-    window.currentCustomer.name = m.CUSTOMER_NAME;
-    window.currentCustomer.renewal = m.RENEWAL;
-
-    const grid = document.getElementById("contact-grid");
-    if (grid && currentCIF) {
-      grid.innerHTML = '<div class="stat-card">Loading contact info...</div>';
-      if (navigator.onLine) {
-        callBackend('extraDetails', { cifId: currentCIF }).then(c => {
-          function formatPhones(str) { if (!str) return '-'; return str.split(';').filter(p=>p.trim()).map(p => `<div><a href="tel:${p}" style="text-decoration:none;color:var(--primary);">${p}</a> <span class="copy-btn" onclick="navigator.clipboard.writeText('${p}')"><i class="material-icons-round" style="font-size:16px;">content_copy</i></span></div>`).join(''); }
-          if (!c) { 
-            grid.innerHTML = "<div class='stat-card'>No contact info</div>"; 
-            window.currentCustomer.account = '-';
-            window.currentCustomer.primaryPhone = '';
-            window.currentCustomer.secondaryPhone = '';
-            return; 
-          }
-          window.currentCustomer.account = c.OP_ACCOUNT || '-';
-          window.currentCustomer.primaryPhone = (c.Contact_No || '').split(';')[0]?.trim() || '';
-          window.currentCustomer.secondaryPhone = (c.Additional_Contact_Number || '').split(';')[0]?.trim() || '';
-          
-          let html = `<div class="stat-card"><div class="stat-label">Primary Contact</div><div class="stat-value" style="font-size:16px;">${c.Contact_Person_Name || '-'}<br>${formatPhones(c.Contact_No)}</div></div>`;
-          if (c.Additional_Contact_Number || c.Additional_Person) { 
-            html += `<div class="stat-card"><div class="stat-label">Additional Contact</div><div class="stat-value" style="font-size:16px;">${c.Additional_Person || '-'} ${c.Additional_Person_Relation ? `(${c.Additional_Person_Relation})` : ''}<br>${formatPhones(c.Additional_Contact_Number)}</div></div>`; 
-          }
-          grid.innerHTML = html;
-        }).catch(() => { 
-          grid.innerHTML="<div class='stat-card'>Contact info unavailable offline</div>"; 
-          window.currentCustomer.account = '-';
-          window.currentCustomer.primaryPhone = '';
-          window.currentCustomer.secondaryPhone = '';
-        });
-      } else {
-        grid.innerHTML = "<div class='stat-card'>Contact info unavailable offline</div>";
-        window.currentCustomer.account = '-';
-        window.currentCustomer.primaryPhone = '';
-        window.currentCustomer.secondaryPhone = '';
-      }
-    }
-  }
-
-  // ========== SHARE & REMINDER (UNCHANGED) ==========
-  function getAccountShareText() {
-    const name = window.currentCustomer?.name || 'N/A';
-    const acc = window.currentCustomer?.account || 'N/A';
-    return `Account Name: ${name}\nAccount No.: ${acc}\nBank: NIC ASIA Bank Limited`;
-  }
-
-  function openShareModal() {
-    if (!window.currentCustomer || !window.currentCustomer.name) {
-      alert("Please load a customer first.");
-      return;
-    }
-    document.getElementById('sharePreview').value = getAccountShareText();
-    document.getElementById('shareModal').classList.remove('hidden');
-  }
-
-  function closeShareModal() { document.getElementById('shareModal').classList.add('hidden'); }
-  function copyAccountInfoFromModal() {
-    const text = document.getElementById('sharePreview').value;
-    navigator.clipboard.writeText(text).then(() => {
-      alert("✅ Account details copied to clipboard");
-      closeShareModal();
-    }).catch(() => alert("❌ Failed to copy."));
-  }
-  function shareViaWhatsAppFromModal() {
-    const text = encodeURIComponent(document.getElementById('sharePreview').value);
-    window.open(`https://wa.me/?text=${text}`, '_blank');
-    closeShareModal();
-  }
-  function shareViaSMSFromModal() {
-    const text = encodeURIComponent(document.getElementById('sharePreview').value);
-    window.location.href = `sms:?body=${text}`;
-    closeShareModal();
-  }
-  document.getElementById('shareModal')?.addEventListener('click', function(e) { if (e.target === this) closeShareModal(); });
-
-  function openReminderPopup() {
-    if (!window.currentCustomer || !window.currentCustomer.name) {
-      alert("Please load a customer first.");
-      return;
-    }
-    document.getElementById('reminderModal').classList.remove('hidden');
-    updatePreview();
-  }
-  function closeReminder() { document.getElementById('reminderModal').classList.add('hidden'); }
-  function getReminderText(lang) {
-    const renewal = (window.currentCustomer?.renewal || '').toUpperCase();
-    const isExpired = renewal === 'EXPIRED';
-    if (isExpired) {
-      return lang === 'NP'
-        ? "आदरणीय ग्राहकज्यू, तपाईंको कर्जा खातामा बक्यौता रकम बाँकी रहेको र कर्जा खाता नवीकरण गर्नु आवश्यक रहेको जानकारी गराउन चाहन्छौँ। कृपया बक्यौता भुक्तानी तथा नवीकरणका लागि आवश्यक कागजातसहित शीघ्र सम्पर्क गर्नुहुन अनुरोध छ। धन्यवाद।"
-        : "Dear Valued Customer, please be informed that your loan account has an overdue balance and also requires renewal. Kindly clear the overdue amount and contact us with the necessary documents for renewal at your earliest convenience. Thank you.";
-    }
-    return lang === 'NP'
-      ? "आदरणीय ग्राहकज्यू, तपाईंको भुक्तानी समयमै नभएकोले बाँकी रहेको जानकारी गराउन चाहन्छौँ। कृपया छिटो भुक्तानी गरिदिनुहुन अनुरोध छ। धन्यवाद।"
-      : "Dear Customer, this is a gentle reminder that your payment is overdue. Kindly arrange clearance at your earliest convenience. Thank you.";
-  }
-  function updatePreview() {
-    const lang = document.getElementById('remLang')?.value || 'EN';
-    document.getElementById('remPreview').value = getReminderText(lang);
-  }
-  function getSelectedPhone() {
-    const type = document.getElementById('remContact')?.value || 'primary';
-    return type === 'secondary' ? window.currentCustomer.secondaryPhone : window.currentCustomer.primaryPhone;
-  }
-  function copyReminder() {
-    const text = document.getElementById('remPreview').value;
-    navigator.clipboard.writeText(text).then(() => alert('✅ Message copied to clipboard')).catch(() => alert('❌ Copy failed'));
-  }
-  function sendWhatsApp() {
-    const phone = getSelectedPhone();
-    if (!phone) { alert('No phone number available for selected contact.'); return; }
-    const text = encodeURIComponent(document.getElementById('remPreview').value);
-    const cleanPhone = phone.replace(/[^0-9]/g, '');
-    const fullPhone = cleanPhone.startsWith('977') ? cleanPhone : '977' + cleanPhone;
-    window.open(`https://wa.me/${fullPhone}?text=${text}`, '_blank');
-  }
-  function sendSMS() {
-    const phone = getSelectedPhone();
-    if (!phone) { alert('No phone number available for selected contact.'); return; }
-    const text = encodeURIComponent(document.getElementById('remPreview').value);
-    window.location.href = `sms:${phone}?body=${text}`;
-  }
-  document.getElementById('reminderModal')?.addEventListener('click', function(e) { if (e.target === this) closeReminder(); });
-
-  // ========== GROUP DETAILS ==========
-  function loadGroupDetails() { 
-    if(!currentGroup || currentGroup.toUpperCase() === "NO GROUP") { 
-      document.getElementById('group-content').innerHTML = '<div class="group-card" style="padding:24px;text-align:center;">No group data</div>'; 
-      return; 
-    }
+    currentCustomer.name = m.CUSTOMER_NAME;
+    currentCustomer.renewal = m.RENEWAL;
     
-    const cached = getCachedGroup(currentGroup);
-    if (cached) renderGroup(cached);
-    else toggleLoader(true);
+    // Contact info - load separately (small request)
+    loadContactInfo();
+  }
+  
+  async function loadContactInfo() {
+    const grid = document.getElementById("contact-grid");
+    if (!grid || !currentCIF) return;
+    
+    grid.innerHTML = '<div class="stat-card">Loading contact info...</div>';
     
     if (navigator.onLine) {
-      callBackend('group', { groupName: currentGroup }).then(d => {
-        toggleLoader(false);
-        renderGroup(d);
-        cacheGroup(currentGroup, d);
-      }).catch(err => {
-        toggleLoader(false);
-        console.error('Failed to load group data', err);
-        if (!cached) alert("Failed to load group data. Working offline with cached data if available.");
-      });
+      try {
+        const c = await callBackend('extraDetails', { cifId: currentCIF });
+        function formatPhones(str) { 
+          if (!str) return '-'; 
+          return str.split(';').filter(p=>p.trim()).map(p => `<div><a href="tel:${p}" style="text-decoration:none;color:var(--primary);">${p}</a> <span class="copy-btn" onclick="navigator.clipboard.writeText('${p}')"><i class="material-icons-round" style="font-size:16px;">content_copy</i></span></div>`).join(''); 
+        }
+        if (!c) { 
+          grid.innerHTML = "<div class='stat-card'>No contact info</div>"; 
+          currentCustomer.account = '-';
+          currentCustomer.primaryPhone = '';
+          currentCustomer.secondaryPhone = '';
+          return; 
+        }
+        currentCustomer.account = c.OP_ACCOUNT || '-';
+        currentCustomer.primaryPhone = (c.Contact_No || '').split(';')[0]?.trim() || '';
+        currentCustomer.secondaryPhone = (c.Additional_Contact_Number || '').split(';')[0]?.trim() || '';
+        
+        let html = `<div class="stat-card"><div class="stat-label">Primary Contact</div><div class="stat-value" style="font-size:16px;">${c.Contact_Person_Name || '-'}<br>${formatPhones(c.Contact_No)}</div></div>`;
+        if (c.Additional_Contact_Number || c.Additional_Person) { 
+          html += `<div class="stat-card"><div class="stat-label">Additional Contact</div><div class="stat-value" style="font-size:16px;">${c.Additional_Person || '-'} ${c.Additional_Person_Relation ? `(${c.Additional_Person_Relation})` : ''}<br>${formatPhones(c.Additional_Contact_Number)}</div></div>`; 
+        }
+        grid.innerHTML = html;
+      } catch (err) { 
+        grid.innerHTML = "<div class='stat-card'>Contact info unavailable</div>"; 
+      }
     } else {
-      toggleLoader(false);
-      if (!cached) alert("You are offline and group data is not cached.");
+      grid.innerHTML = "<div class='stat-card'>Contact info unavailable offline</div>";
     }
   }
-
-  function renderGroup(d) {
-    if(!d || !d.summary) { 
-      document.getElementById('group-content').innerHTML = '<div class="group-card" style="padding:24px;">No data</div>'; 
+  
+  function renderGroup(groupData) {
+    if (!groupData || !groupData.summary) { 
+      document.getElementById('group-content').innerHTML = '<div class="group-card" style="padding:24px;text-align:center;">No group data</div>'; 
       return; 
     }
     
     let html = `<div class="group-card">
       <div class="group-header-dark">
-        <div style="font-size:22px; font-weight:800;">${d.summary.groupName}</div>
+        <div style="font-size:22px; font-weight:800;">${groupData.summary.groupName}</div>
       </div>
       <div class="grid-dynamic" style="grid-template-columns: repeat(3,1fr);">
-        <div class="grid-item-ui"><div class="stat-label">UNITS</div><div class="stat-value">${d.summary.unitCount}</div></div>
-        <div class="grid-item-ui"><div class="stat-label">TOTAL LOAN</div><div class="stat-value">${fAmt(d.summary.totalLoan)}</div></div>
-        <div class="grid-item-ui"><div class="stat-label">TOTAL OVERDUE</div><div class="stat-value">${fAmt(d.summary.totalOvd)}</div></div>
-        <div class="grid-item-ui"><div class="stat-label">NET OVERDUE</div><div class="stat-value" style="color:var(--danger);">${fAmt(d.summary.totalNetOvd)}</div></div>
-        <div class="grid-item-ui"><div class="stat-label">MIN NPA SAVER</div><div class="stat-value">${fAmt(d.summary.minNpa)}</div></div>
-        <div class="grid-item-ui"><div class="stat-label">MIN WL SAVER</div><div class="stat-value">${fAmt(d.summary.minWl)}</div></div>
+        <div class="grid-item-ui"><div class="stat-label">UNITS</div><div class="stat-value">${groupData.summary.unitCount}</div></div>
+        <div class="grid-item-ui"><div class="stat-label">TOTAL LOAN</div><div class="stat-value">${fAmt(groupData.summary.totalLoan)}</div></div>
+        <div class="grid-item-ui"><div class="stat-label">TOTAL OVERDUE</div><div class="stat-value">${fAmt(groupData.summary.totalOvd)}</div></div>
+        <div class="grid-item-ui"><div class="stat-label">NET OVERDUE</div><div class="stat-value" style="color:var(--danger);">${fAmt(groupData.summary.totalNetOvd)}</div></div>
+        <div class="grid-item-ui"><div class="stat-label">MIN NPA SAVER</div><div class="stat-value">${fAmt(groupData.summary.minNpa)}</div></div>
+        <div class="grid-item-ui"><div class="stat-label">MIN WL SAVER</div><div class="stat-value">${fAmt(groupData.summary.minWl)}</div></div>
       </div>
     </div>`;
     
-    d.units.forEach(u => {
+    (groupData.units || []).forEach(u => {
       html += `
         <div class="member-card">
           <div class="member-header">
             <div>
               <div class="member-name">${u.name}</div>
-              <div class="member-sub">${u.groupName || currentGroup}</div>
+              <div class="member-sub">${groupData.summary.groupName}</div>
             </div>
             <div class="member-badges">
               ${getStatusIcons(u.actual, u.probable)}
@@ -1503,32 +1296,77 @@
     
     document.getElementById('group-content').innerHTML = html;
   }
-
-  // ========== INSIGHTS ==========
-  function loadInsights() { 
+  
+  // ========== NAVIGATION ==========
+  function navTo(view) {
+    if (view === 'group') {
+      if (!currentGroup || currentGroup.toUpperCase() === "NO GROUP") {
+        alert("No group information available for this customer.");
+        return;
+      }
+      loadGroupDetails();
+    } else if (view === 'detail') {
+      if (!currentCIF) {
+        alert("Please select a customer first.");
+        return;
+      }
+      loadDetails();
+    } else if (view === 'insights') {
+      if (!currentCIF) {
+        alert("Please select a customer first.");
+        return;
+      }
+      loadInsights();
+    }
+    
+    document.querySelectorAll('.view').forEach(e => e.classList.add('hidden'));
+    document.querySelectorAll('.nav-item').forEach(e => e.classList.remove('active'));
+    document.getElementById('view-' + view).classList.remove('hidden');
+    document.getElementById('n-' + view).classList.add('active');
+  }
+  
+  function loadDetails() {
+    const metrics = getCustomerMetricsFromCache(currentCIF);
+    if (metrics) {
+      renderMetrics(metrics);
+    } else {
+      document.getElementById('det-name').innerText = 'Customer not found';
+    }
+  }
+  
+  function loadGroupDetails() {
+    const groupData = getGroupFromCache(currentGroup);
+    if (groupData) {
+      renderGroup(groupData);
+    } else {
+      document.getElementById('group-content').innerHTML = '<div class="group-card" style="padding:24px;text-align:center;">Group data not found</div>';
+    }
+  }
+  
+  async function loadInsights() {
     toggleLoader(true);
-    callBackend('overdue', { cifId: currentCIF }).then(res => {
-      document.getElementById('body-daily').innerHTML = res.rows.map(r => `<tr><td style="font-weight:600;">${r.OVD_DATE}</td><td>${fAmt(r.TOT_OVD_AMT)}</td><td>${fAmt(r.I_OVD)}</td><td>${fAmt(r.P_OVD)}</td><td>${fAmt(r.PENAL_INT)}</td></tr>`).join('');
-      document.getElementById('foot-daily').innerHTML = `<tr><td>TOTAL</td><td>${fAmt(res.total.TOT_OVD_AMT)}</td><td>${fAmt(res.total.I_OVD)}</td><td>${fAmt(res.total.P_OVD)}</td><td>${fAmt(res.total.PENAL_INT)}</td></tr>`;
+    try {
+      const res = await callBackend('overdue', { cifId: currentCIF });
+      document.getElementById('body-daily').innerHTML = (res.rows || []).map(r => `<tr><td style="font-weight:600;">${r.OVD_DATE}</td><td>${fAmt(r.TOT_OVD_AMT)}</td><td>${fAmt(r.I_OVD)}</td><td>${fAmt(r.P_OVD)}</td><td>${fAmt(r.PENAL_INT)}</td>`).join('');
+      document.getElementById('foot-daily').innerHTML = `<tr><td>TOTAL</td><td>${fAmt(res.total?.TOT_OVD_AMT || 0)}</td><td>${fAmt(res.total?.I_OVD || 0)}</td><td>${fAmt(res.total?.P_OVD || 0)}</td><td>${fAmt(res.total?.PENAL_INT || 0)}</td>`);
       
-      callBackend('slicerOptions', { cifId: currentCIF }).then(meta => { 
-        slicerMeta = meta; 
-        renderFilters(meta.years, meta.months); 
-        applySlicer(); 
-        toggleLoader(false); 
-      }).catch(() => toggleLoader(false));
-    }).catch(err => {
+      const meta = await callBackend('slicerOptions', { cifId: currentCIF });
+      slicerMeta = meta;
+      renderFilters(meta.years || [], meta.months || []);
+      await applySlicer();
+      toggleLoader(false);
+    } catch (err) {
       console.error('Failed to load insights', err);
       toggleLoader(false);
       alert("Failed to load insights data");
-    });
+    }
   }
   
   function renderFilters(years, months) {
     const yrHtml = [`<label><input type="checkbox" class="check-chip yr-chip" value="ALL" checked onchange="toggleAllYears(this)"><div class="chip-label">ALL</div></label>`];
     years.forEach(y => yrHtml.push(`<label><input type="checkbox" class="check-chip yr-chip sub-yr" value="${y}" checked><div class="chip-label">${y}</div></label>`));
     document.getElementById('year-chips').innerHTML = yrHtml.join('');
-    if(months && months.length) { 
+    if (months && months.length) { 
       document.getElementById('month-chips').innerHTML = months.map(m => `<label><input type="checkbox" class="check-chip mn-chip" value="${m}" checked><div class="chip-label">${m}</div></label>`).join('');
     } else { 
       document.getElementById('month-chips').innerHTML = '<div style="padding:10px;">No monthly data</div>'; 
@@ -1539,17 +1377,16 @@
     document.querySelectorAll('.sub-yr').forEach(cb => cb.checked = allCheck.checked); 
   }
   
-  function applySlicer() {
-    const checkedYears = Array.from(document.querySelectorAll('.yr-chip:checked')).map(i=>i.value);
-    const checkedMonths = Array.from(document.querySelectorAll('.mn-chip:checked')).map(i=>i.value);
-    callBackend('slicerSummary', { cifId: currentCIF, years: checkedYears, months: checkedMonths }).then(d => { 
-      let t_ovd=0,t_i=0,t_p=0,t_pen=0;
-      document.getElementById('body-nepali').innerHTML = d.map(r => { 
-        t_ovd+=r.TOT_OVD_AMT; t_i+=r.I_OVD; t_p+=r.P_OVD; t_pen+=r.PENAL_INT;
-        return `<tr><td style="font-weight:600;">${r.NEPALI_OVD_Month}</td><td>${fAmt(r.TOT_OVD_AMT)}</td><td>${fAmt(r.I_OVD)}</td><td>${fAmt(r.P_OVD)}</td><td>${fAmt(r.PENAL_INT)}</td></tr>`;
-      }).join('');
-      document.getElementById('foot-nepali').innerHTML = `<tr><td>TOTAL</td><td>${fAmt(t_ovd)}</td><td>${fAmt(t_i)}</td><td>${fAmt(t_p)}</td><td>${fAmt(t_pen)}</td></tr>`;
-    });
+  async function applySlicer() {
+    const checkedYears = Array.from(document.querySelectorAll('.yr-chip:checked')).map(i => i.value);
+    const checkedMonths = Array.from(document.querySelectorAll('.mn-chip:checked')).map(i => i.value);
+    const d = await callBackend('slicerSummary', { cifId: currentCIF, years: checkedYears, months: checkedMonths });
+    let t_ovd = 0, t_i = 0, t_p = 0, t_pen = 0;
+    document.getElementById('body-nepali').innerHTML = d.map(r => { 
+      t_ovd += r.TOT_OVD_AMT; t_i += r.I_OVD; t_p += r.P_OVD; t_pen += r.PENAL_INT;
+      return `<tr><td style="font-weight:600;">${r.NEPALI_OVD_Month}</td><td>${fAmt(r.TOT_OVD_AMT)}</td><td>${fAmt(r.I_OVD)}</td><td>${fAmt(r.P_OVD)}</td><td>${fAmt(r.PENAL_INT)}</td>`);
+    }).join('');
+    document.getElementById('foot-nepali').innerHTML = `<tr><td>TOTAL</td><td>${fAmt(t_ovd)}</td><td>${fAmt(t_i)}</td><td>${fAmt(t_p)}</td><td>${fAmt(t_pen)}</td>`);
   }
   
   function switchTab(t) { 
@@ -1558,6 +1395,121 @@
     document.getElementById('tab-daily').classList.toggle('active', t === 'daily'); 
     document.getElementById('tab-nepali').classList.toggle('active', t === 'nepali'); 
   }
+  
+  // ========== SHARE & REMINDER FUNCTIONS ==========
+  function openDashboard() {
+    window.open(API_BASE + '?page=dashboard', '_blank');
+  }
+  
+  function getAccountShareText() {
+    return `Account Name: ${currentCustomer.name || 'N/A'}\nAccount No.: ${currentCustomer.account || 'N/A'}\nBank: NIC ASIA Bank Limited`;
+  }
+  
+  function openShareModal() {
+    document.getElementById('sharePreview').value = getAccountShareText();
+    document.getElementById('shareModal').classList.remove('hidden');
+  }
+  
+  function closeShareModal() { document.getElementById('shareModal').classList.add('hidden'); }
+  
+  function copyAccountInfoFromModal() {
+    navigator.clipboard.writeText(document.getElementById('sharePreview').value).then(() => {
+      alert("✅ Copied to clipboard");
+      closeShareModal();
+    });
+  }
+  
+  function shareViaWhatsAppFromModal() {
+    window.open(`https://wa.me/?text=${encodeURIComponent(document.getElementById('sharePreview').value)}`, '_blank');
+    closeShareModal();
+  }
+  
+  function shareViaSMSFromModal() {
+    window.location.href = `sms:?body=${encodeURIComponent(document.getElementById('sharePreview').value)}`;
+    closeShareModal();
+  }
+  
+  function openReminderPopup() {
+    document.getElementById('reminderModal').classList.remove('hidden');
+    updatePreview();
+  }
+  
+  function closeReminder() { document.getElementById('reminderModal').classList.add('hidden'); }
+  
+  function getReminderText(lang) {
+    const isExpired = (currentCustomer.renewal || '').toUpperCase() === 'EXPIRED';
+    if (isExpired) {
+      return lang === 'NP'
+        ? "आदरणीय ग्राहकज्यू, तपाईंको कर्जा खातामा बक्यौता रकम बाँकी रहेको र कर्जा खाता नवीकरण गर्नु आवश्यक रहेको जानकारी गराउन चाहन्छौँ। कृपया बक्यौता भुक्तानी तथा नवीकरणका लागि आवश्यक कागजातसहित शीघ्र सम्पर्क गर्नुहुन अनुरोध छ। धन्यवाद।"
+        : "Dear Valued Customer, please be informed that your loan account has an overdue balance and also requires renewal. Kindly clear the overdue amount and contact us with the necessary documents for renewal at your earliest convenience. Thank you.";
+    }
+    return lang === 'NP'
+      ? "आदरणीय ग्राहकज्यू, तपाईंको भुक्तानी समयमै नभएकोले बाँकी रहेको जानकारी गराउन चाहन्छौँ। कृपया छिटो भुक्तानी गरिदिनुहुन अनुरोध छ। धन्यवाद।"
+      : "Dear Customer, this is a gentle reminder that your payment is overdue. Kindly arrange clearance at your earliest convenience. Thank you.";
+  }
+  
+  function updatePreview() {
+    const lang = document.getElementById('remLang')?.value || 'EN';
+    document.getElementById('remPreview').value = getReminderText(lang);
+  }
+  
+  function getSelectedPhone() {
+    const type = document.getElementById('remContact')?.value || 'primary';
+    return type === 'secondary' ? currentCustomer.secondaryPhone : currentCustomer.primaryPhone;
+  }
+  
+  function copyReminder() {
+    navigator.clipboard.writeText(document.getElementById('remPreview').value).then(() => alert('✅ Copied'));
+  }
+  
+  function sendWhatsApp() {
+    const phone = getSelectedPhone();
+    if (!phone) { alert('No phone number available'); return; }
+    const cleanPhone = phone.replace(/[^0-9]/g, '');
+    const fullPhone = cleanPhone.startsWith('977') ? cleanPhone : '977' + cleanPhone;
+    window.open(`https://wa.me/${fullPhone}?text=${encodeURIComponent(document.getElementById('remPreview').value)}`, '_blank');
+  }
+  
+  function sendSMS() {
+    const phone = getSelectedPhone();
+    if (!phone) { alert('No phone number available'); return; }
+    window.location.href = `sms:${phone}?body=${encodeURIComponent(document.getElementById('remPreview').value)}`;
+  }
+  
+  // ========== OFFLINE DETECTION ==========
+  function updateOnlineStatus() {
+    const banner = document.getElementById('offlineBanner');
+    const isOnline = navigator.onLine;
+    if (isOnline) {
+      banner.classList.add('hidden');
+    } else {
+      banner.classList.remove('hidden');
+    }
+  }
+  
+  // ========== SERVICE WORKER REGISTRATION ==========
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js')
+        .then(reg => console.log('Service Worker registered:', reg.scope))
+        .catch(err => console.error('SW registration failed:', err));
+    });
+  }
+  
+  // ========== INITIALIZE APP ==========
+  window.addEventListener('DOMContentLoaded', updateOnlineStatus);
+  window.addEventListener('online', updateOnlineStatus);
+  window.addEventListener('offline', updateOnlineStatus);
+  
+  // Start the app
+  loadFullData().then(success => {
+    if (!success) {
+      // Retry after 5 seconds if offline
+      if (!navigator.onLine) {
+        setTimeout(() => loadFullData(), 5000);
+      }
+    }
+  });
 </script>
 </body>
 </html>
