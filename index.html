@@ -1,1515 +1,691 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, viewport-fit=cover">
+// At the very top of the file, add:
+var CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type'
+};
+
+const NEPALI_MONTHS = ["Baisakh", "Jestha", "Ashadh", "Shrawan", "Bhadra", "Ashwin", "Kartik", "Mangsir", "Poush", "Magh", "Falgun", "Chaitra"];
+
+let GLOBAL_DATA = null;
+let CATEGORY_CRITERIA = null;
+
+function doGet(e) {
+  const action = e?.parameter?.action || '';
+  const file = e?.parameter?.file || '';
+  const callback = e?.parameter?.callback || '';
+  const username = e?.parameter?.username || '';
+  const password = e?.parameter?.password || '';
+  const cifId = e?.parameter?.cifId || '';
+  const groupName = e?.parameter?.groupName || '';
+  const years = e?.parameter?.years ? JSON.parse(e.parameter.years) : [];
+  const months = e?.parameter?.months ? JSON.parse(e.parameter.months) : [];
   
-  <!-- PWA Meta Tags -->
-  <meta name="theme-color" content="#1A3B5C">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="manifest" href="./manifest.json">
-  <link rel="apple-touch-icon" href="icon.png">
+  // ========== NEW: Route to Dashboard page ==========
+  if (e?.parameter?.page === 'dashboard') {
+    return serveDashboard();
+  }
   
-  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+  // Handle static files for PWA
+  if (file === 'manifest') {
+    const manifest = {
+      name: "Behind Schedule",
+      short_name: "Behind Schedule",
+      description: "Customer overdue View system",
+      start_url: "./",
+      display: "standalone",
+      theme_color: "#1A3B5C",
+      background_color: "#F4F7FC",
+      orientation: "portrait",
+      scope: "./",
+      icons: [
+        { src: "icon.png", sizes: "72x72", type: "image/png", purpose: "any maskable" },
+        { src: "icon.png", sizes: "96x96", type: "image/png", purpose: "any maskable" },
+        { src: "icon.png", sizes: "128x128", type: "image/png", purpose: "any maskable" },
+        { src: "icon.png", sizes: "144x144", type: "image/png", purpose: "any maskable" },
+        { src: "icon.png", sizes: "152x152", type: "image/png", purpose: "any maskable" },
+        { src: "icon.png", sizes: "192x192", type: "image/png", purpose: "any maskable" },
+        { src: "icon.png", sizes: "384x384", type: "image/png", purpose: "any maskable" },
+        { src: "icon.png", sizes: "512x512", type: "image/png", purpose: "any maskable" }
+      ]
+    };
+    return ContentService.createTextOutput(JSON.stringify(manifest))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  if (file === 'sw') {
+    return ContentService.createTextOutput(
+      HtmlService.createHtmlOutputFromFile('sw').getContent()
+    ).setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
   
-  <style>
-    /* ====== ALL YOUR EXISTING STYLES REMAIN THE SAME ====== */
-    * {
-      box-sizing: border-box;
-      -webkit-tap-highlight-color: transparent;
-    }
-    :root {
-      --primary: #1A3B5C;
-      --primary-light: #2A5A8C;
-      --accent-gold: #C9A227;
-      --accent-gold-light: #E6C25E;
-      --bg-dark: #0F1A2C;
-      --bg-light: #F4F7FC;
-      --surface-white: #FFFFFF;
-      --glass-bg: rgba(255, 255, 255, 0.85);
-      --glass-border: rgba(255, 255, 255, 0.6);
-      --text-primary: #0A1929;
-      --text-secondary: #2C3E50;
-      --text-muted: #5A6E8A;
-      --border-light: #E2E8F0;
-      --success: #00A86B;
-      --warning: #F5A623;
-      --danger: #E53E3E;
-      --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.05);
-      --shadow-md: 0 8px 20px rgba(0, 0, 0, 0.06), 0 0 0 0.5px rgba(0, 0, 0, 0.02);
-      --shadow-lg: 0 20px 35px -8px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.02);
-      --shadow-hover: 0 24px 42px -12px rgba(26, 59, 92, 0.18);
-      --radius-xl: 24px;
-      --radius-lg: 18px;
-      --radius-md: 14px;
-      --radius-sm: 10px;
-      --transition: all 0.25s cubic-bezier(0.2, 0, 0, 1);
-    }
-    body {
-      font-family: 'Inter', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
-      background: var(--bg-light);
-      margin: 0;
-      padding-bottom: 84px;
-      color: var(--text-primary);
-      overflow-x: hidden;
-    }
-    .hidden { display: none !important; }
-    .content {
-      padding: 0 20px;
-      max-width: 1280px;
-      margin: 0 auto;
-    }
-    
-    /* ----- Premium Header ----- */
-    header {
-      background: rgba(255, 255, 255, 0.95);
-      backdrop-filter: blur(20px);
-      padding: 16px 24px;
-      position: sticky;
-      top: 0;
-      z-index: 100;
-      border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-      box-shadow: var(--shadow-sm);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-    .header-left {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    .app-title {
-      font-weight: 700;
-      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
-      -webkit-background-clip: text;
-      background-clip: text;
-      color: transparent;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      font-size: 22px;
-      letter-spacing: -0.3px;
-    }
-    .app-title i {
-      background: linear-gradient(135deg, var(--primary), var(--accent-gold));
-      -webkit-background-clip: text;
-      background-clip: text;
-      color: transparent;
-      font-size: 28px;
-    }
-    
-    /* Dashboard Icon in Header */
-    .dashboard-icon {
-      cursor: pointer;
-      font-size: 20px;
-      padding: 10px;
-      border-radius: var(--radius-sm);
-      transition: var(--transition);
-      background: rgba(26, 59, 92, 0.04);
-      color: var(--primary);
-      line-height: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border: 1px solid transparent;
-      gap: 6px;
-      font-weight: 600;
-      font-size: 14px;
-    }
-    .dashboard-icon i {
-      font-size: 22px;
-    }
-    .dashboard-icon:hover {
-      background: var(--primary);
-      color: white;
-      transform: translateY(-2px);
-      box-shadow: var(--shadow-md);
-    }
-    
-    /* ----- Premium Customer Header Card ----- */
-    .customer-header {
-      background: var(--glass-bg);
-      backdrop-filter: blur(20px);
-      padding: 28px 28px 24px;
-      border-radius: var(--radius-xl);
-      margin-bottom: 28px;
-      border: 1px solid var(--glass-border);
-      box-shadow: var(--shadow-md);
-      transition: var(--transition);
-    }
-    .customer-header:hover {
-      box-shadow: var(--shadow-hover);
-      border-color: rgba(26, 59, 92, 0.15);
-    }
-    .name-row {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      flex-wrap: wrap;
-    }
-    .cust-name {
-      font-size: 28px;
-      font-weight: 700;
-      color: var(--text-primary);
-      letter-spacing: -0.5px;
-      margin: 0;
-    }
-    .inline-status {
-      display: flex;
-      gap: 8px;
-    }
-    .st-icon {
-      padding: 5px 14px;
-      font-size: 12px;
-      font-weight: 600;
-      border-radius: 40px;
-      letter-spacing: 0.2px;
-      box-shadow: var(--shadow-sm);
-      backdrop-filter: blur(4px);
-      transition: var(--transition);
-    }
-    .st-act-pass { background: #0B753D; color: white; border: 1px solid #2E9B5E; }
-    .st-act-wl { background: #F5A623; color: #1A1A1A; border: 1px solid #F7C15E; }
-    .st-act-npa { background: #E53E3E; color: white; border: 1px solid #EF6B6B; }
-    .st-prob-pass { background: #6EBA9A; color: #0A2A1A; border: 1px solid #A8DCC8; }
-    .st-prob-wl { background: #FCE3A4; color: #4A3000; border: 1px solid #FAD980; }
-    .st-prob-npa { background: #F5A0A0; color: #4A0F0F; border: 1px solid #F7BEBE; }
-    
-    .header-actions {
-      display: flex;
-      gap: 12px;
-      margin-left: auto;
-    }
-    .action-icon {
-      cursor: pointer;
-      font-size: 20px;
-      padding: 10px;
-      border-radius: var(--radius-sm);
-      transition: var(--transition);
-      background: rgba(26, 59, 92, 0.04);
-      color: var(--primary);
-      line-height: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border: 1px solid transparent;
-    }
-    .action-icon:hover {
-      background: var(--primary);
-      color: white;
-      transform: translateY(-2px);
-      box-shadow: var(--shadow-md);
-    }
-    
-    .header-sub {
-      display: flex;
-      align-items: center;
-      gap: 20px;
-      margin-top: 14px;
-    }
-    .cust-id {
-      font-size: 14px;
-      color: var(--text-muted);
-      font-weight: 500;
-    }
-    .group-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      background: rgba(26, 59, 92, 0.06);
-      color: var(--primary);
-      padding: 8px 18px;
-      border-radius: 40px;
-      font-size: 13px;
-      font-weight: 600;
-      backdrop-filter: blur(4px);
-      transition: var(--transition);
-      cursor: pointer;
-      border: 1px solid rgba(26, 59, 92, 0.08);
-    }
-    .group-badge:hover {
-      background: rgba(26, 59, 92, 0.12);
-      transform: scale(0.98);
-      border-color: var(--primary-light);
-    }
-    
-    /* ----- Premium Stat Cards ----- */
-    .grid-summary {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 18px;
-      margin-bottom: 28px;
-    }
-    .stat-card {
-      background: var(--surface-white);
-      border-radius: var(--radius-lg);
-      padding: 22px 20px;
-      transition: var(--transition);
-      border: 1px solid var(--border-light);
-      box-shadow: var(--shadow-sm);
-      position: relative;
-      overflow: hidden;
-    }
-    .stat-card::after {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 4px;
-      background: linear-gradient(90deg, var(--primary), var(--accent-gold));
-      opacity: 0;
-      transition: opacity 0.3s;
-    }
-    .stat-card:hover {
-      transform: translateY(-6px);
-      box-shadow: var(--shadow-hover);
-      border-color: rgba(26, 59, 92, 0.2);
-    }
-    .stat-card:hover::after {
-      opacity: 1;
-    }
-    .stat-header {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 12px;
-    }
-    .stat-header i {
-      font-size: 24px;
-      background: linear-gradient(135deg, var(--primary), var(--accent-gold));
-      -webkit-background-clip: text;
-      background-clip: text;
-      color: transparent;
-    }
-    .stat-label {
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.6px;
-      color: var(--text-muted);
-    }
-    .stat-value {
-      font-size: 26px;
-      font-weight: 800;
-      letter-spacing: -0.5px;
-      color: var(--text-primary);
-      line-height: 1.2;
-    }
-    
-    /* ----- Premium Table ----- */
-    .table-wrapper {
-      width: 100%;
-      overflow-x: auto;
-      border-radius: var(--radius-lg);
-      background: var(--surface-white);
-      border: 1px solid var(--border-light);
-      box-shadow: var(--shadow-sm);
-    }
-    table {
-      border-collapse: collapse;
-      font-size: 13px;
-      width: 100%;
-      min-width: 700px;
-    }
-    th, td {
-      padding: 18px 16px;
-      text-align: left;
-      white-space: nowrap;
-    }
-    td:first-child {
-      white-space: normal;
-      min-width: 180px;
-    }
-    th {
-      background: #F8FAFD;
-      font-weight: 700;
-      font-size: 11px;
-      letter-spacing: 0.5px;
-      color: var(--text-secondary);
-      border-bottom: 2px solid #E2E8F0;
-      text-transform: uppercase;
-    }
-    td {
-      border-bottom: 1px solid #EDF2F7;
-      color: var(--text-primary);
-      font-weight: 500;
-    }
-    tfoot td {
-      background: #F8FAFD;
-      font-weight: 800;
-      border-top: 2px solid #E2E8F0;
-      color: var(--primary);
-    }
-    
-    /* ----- Group Card (Summary) ----- */
-    .group-card {
-      background: var(--surface-white);
-      border-radius: var(--radius-xl);
-      margin-bottom: 24px;
-      border: 1px solid var(--border-light);
-      box-shadow: var(--shadow-sm);
-      overflow: hidden;
-      transition: var(--transition);
-    }
-    .group-card:hover {
-      box-shadow: var(--shadow-lg);
-    }
-    .group-header-dark {
-      background: linear-gradient(105deg, #0B1E2E 0%, #122B3F 100%);
-      color: white;
-      padding: 22px 28px;
-    }
-    .grid-dynamic {
-      display: grid;
-      gap: 1px;
-      background: #E2E8F0;
-    }
-    .grid-item-ui {
-      background: white;
-      padding: 20px 24px;
+  // API actions
+  if (action) {
+    let result;
+    try {
+      switch (action) {
+        case 'login':
+          result = authenticateUser(username, password);
+          break;
+        case 'preload':
+          result = preloadCache();
+          break;
+        case 'customers':
+          result = getCustomerList();
+          break;
+        case 'metrics':
+          result = getCustomerMetrics(cifId);
+          break;
+        case 'group':
+          result = getGroupDetails(groupName);
+          break;
+        case 'overdue':
+          result = getOverdueDetails(cifId);
+          break;
+        case 'slicerOptions':
+          result = getSlicerOptions(cifId);
+          break;
+        case 'slicerSummary':
+          result = getSlicerSummary(cifId, years, months);
+          break;
+        case 'extraDetails':
+          result = getCustomerExtraDetails(cifId);
+          break;
+        // ========== NEW CASE ==========
+        case 'customersByCategory':
+          result = getCustomersByCategory(
+            e?.parameter?.category,
+            e?.parameter?.relationship,
+            e?.parameter?.sortBy,
+            e?.parameter?.sortOrder,
+            e?.parameter?.page,
+            e?.parameter?.pageSize
+          );
+          break;
+        default:
+          result = { error: 'Invalid action' };
+      }
+    } catch (err) {
+      result = { error: err.toString() };
     }
 
-    /* ----- New Group Member Cards (Premium CRM Style) ----- */
-    .member-card {
-      background: var(--surface-white);
-      border-radius: var(--radius-lg);
-      padding: 20px 22px;
-      margin-bottom: 16px;
-      border: 1px solid var(--border-light);
-      box-shadow: var(--shadow-sm);
-      transition: var(--transition);
+    const json = JSON.stringify(result);
+    if (callback) {
+      return ContentService.createTextOutput(callback + '(' + json + ')')
+        .setMimeType(ContentService.MimeType.JAVASCRIPT);
     }
-    .member-card:hover {
-      box-shadow: var(--shadow-md);
-      transform: translateY(-2px);
-      border-color: rgba(26, 59, 92, 0.15);
-    }
-    .member-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      margin-bottom: 16px;
-    }
-    .member-name {
-      font-size: 20px;
-      font-weight: 700;
-      color: var(--text-primary);
-      letter-spacing: -0.3px;
-    }
-    .member-sub {
-      font-size: 13px;
-      color: var(--text-muted);
-      margin-top: 4px;
-    }
-    .member-badges {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-    }
-    .days-badge {
-      background: var(--danger);
-      color: white;
-      padding: 5px 12px;
-      border-radius: 40px;
-      font-weight: 700;
-      font-size: 13px;
-      white-space: nowrap;
-    }
-    .days-badge.warning {
-      background: var(--warning);
-      color: #1A1A1A;
-    }
-    .member-metrics {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 12px 18px;
-      margin-bottom: 16px;
-    }
-    .metric-item {
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-      border-bottom: 1px dashed var(--border-light);
-      padding-bottom: 6px;
-    }
-    .metric-label {
-      font-size: 13px;
-      font-weight: 500;
-      color: var(--text-muted);
-    }
-    .metric-value {
-      font-size: 16px;
-      font-weight: 700;
-      color: var(--text-primary);
-    }
-    .member-footer {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding-top: 12px;
-      border-top: 2px solid var(--border-light);
-    }
-    .footer-label {
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--text-secondary);
-    }
-    .footer-value {
-      font-size: 18px;
-      font-weight: 800;
-      color: var(--primary);
-      letter-spacing: -0.3px;
-    }
-
-    /* ----- Bottom Navigation Premium ----- */
-    .bottom-nav {
-      position: fixed;
-      bottom: 0;
-      width: 100%;
-      background: rgba(255, 255, 255, 0.96);
-      backdrop-filter: blur(20px);
-      display: flex;
-      border-top: 1px solid rgba(0, 0, 0, 0.05);
-      padding-bottom: env(safe-area-inset-bottom);
-      height: 76px;
-      box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.03);
-    }
-    .nav-item {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-      font-size: 11px;
-      font-weight: 600;
-      color: var(--text-muted);
-      transition: var(--transition);
-      cursor: pointer;
-      border-radius: 40px;
-      margin: 6px 4px;
-    }
-    .nav-item i {
-      font-size: 24px;
-      transition: transform 0.2s;
-    }
-    .nav-item.active {
-      color: var(--primary);
-      background: linear-gradient(135deg, rgba(26, 59, 92, 0.06), rgba(201, 162, 39, 0.04));
-      box-shadow: inset 0 1px 2px rgba(0,0,0,0.02);
-    }
-    .nav-item:active i {
-      transform: scale(0.92);
-    }
-    
-    /* ----- Search Premium ----- */
-    .search-input {
-      width: 100%;
-      padding: 18px 22px;
-      border-radius: 60px;
-      border: 1px solid var(--border-light);
-      background: white;
-      font-size: 16px;
-      font-weight: 500;
-      box-shadow: var(--shadow-sm);
-      transition: var(--transition);
-    }
-    .search-input:focus {
-      outline: none;
-      border-color: var(--primary);
-      box-shadow: 0 0 0 4px rgba(26, 59, 92, 0.08);
-    }
-    .search-result-item {
-      background: white;
-      border-radius: var(--radius-lg);
-      padding: 20px;
-      margin-bottom: 12px;
-      border: 1px solid var(--border-light);
-      transition: var(--transition);
-      cursor: pointer;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .search-result-item:hover {
-      border-color: var(--primary);
-      transform: translateX(6px);
-      box-shadow: var(--shadow-md);
-    }
-    
-    /* ----- Tabs & Chips Premium ----- */
-    .tab-group {
-      display: flex;
-      background: #E9EEF5;
-      padding: 6px;
-      border-radius: 60px;
-      margin: 20px 0;
-    }
-    .tab-btn {
-      flex: 1;
-      text-align: center;
-      padding: 14px;
-      font-weight: 700;
-      border-radius: 40px;
-      transition: var(--transition);
-      color: var(--text-secondary);
-      cursor: pointer;
-    }
-    .tab-btn.active {
-      background: white;
-      color: var(--primary);
-      box-shadow: var(--shadow-sm);
-    }
-    .chip-label {
-      padding: 10px 20px;
-      border-radius: 40px;
-      background: #F0F4FA;
-      font-weight: 600;
-      transition: var(--transition);
-      cursor: pointer;
-      border: 1px solid transparent;
-    }
-    .check-chip:checked + .chip-label {
-      background: var(--primary);
-      color: white;
-      box-shadow: 0 4px 12px rgba(26, 59, 92, 0.3);
-    }
-    
-    /* ----- Buttons Premium ----- */
-    button {
-      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
-      border: none;
-      padding: 16px 24px;
-      border-radius: 60px;
-      font-weight: 700;
-      font-size: 15px;
-      box-shadow: 0 4px 14px rgba(26, 59, 92, 0.25);
-      transition: var(--transition);
-      color: white;
-      cursor: pointer;
-      border: 1px solid rgba(255,255,255,0.1);
-    }
-    button:active {
-      transform: scale(0.97);
-      box-shadow: 0 2px 8px rgba(26, 59, 92, 0.2);
-    }
-    
-    /* ----- Loader Premium ----- */
-    #loader {
-      backdrop-filter: blur(12px);
-      background: rgba(255, 255, 255, 0.9);
-      position: fixed;
-      top: 0; left: 0; right: 0; bottom: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 999;
-    }
-    .spinner {
-      width: 48px;
-      height: 48px;
-      border: 3px solid rgba(26, 59, 92, 0.1);
-      border-top: 3px solid var(--primary);
-      border-radius: 50%;
-      animation: spin 0.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    
-    /* ----- Section Titles Premium ----- */
-    .section-title {
-      font-size: 20px;
-      font-weight: 700;
-      letter-spacing: -0.3px;
-      margin: 32px 0 18px;
-      color: var(--text-primary);
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    .section-title i {
-      color: var(--accent-gold);
-    }
-    
-    /* ----- Additional Micro-interactions ----- */
-    .copy-btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      background: #F0F4FE;
-      color: var(--primary);
-      padding: 8px;
-      border-radius: 10px;
-      transition: var(--transition);
-      cursor: pointer;
-    }
-    .copy-btn:hover {
-      background: var(--primary);
-      color: white;
-    }
-    .month-slider-track {
-      display: flex;
-      gap: 12px;
-      overflow-x: auto;
-      padding-bottom: 12px;
-      scrollbar-width: thin;
-    }
-
-    /* ----- Modals (Reminder & Share) ----- */
-    .reminder-modal, .share-modal {
-      position: fixed;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0, 0, 0, 0.4);
-      backdrop-filter: blur(8px);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 1000;
-      padding: 20px;
-    }
-    .reminder-box, .share-box {
-      background: var(--surface-white);
-      border-radius: var(--radius-xl);
-      padding: 28px 24px;
-      width: 100%;
-      max-width: 420px;
-      box-shadow: var(--shadow-lg);
-      border: 1px solid var(--border-light);
-    }
-    .rem-title, .share-title {
-      font-size: 20px;
-      font-weight: 700;
-      margin-bottom: 20px;
-      color: var(--primary);
-    }
-    .reminder-box label, .share-box label {
-      display: block;
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--text-secondary);
-      margin: 12px 0 6px;
-    }
-    .reminder-box select,
-    .reminder-box textarea,
-    .share-box textarea {
-      width: 100%;
-      padding: 12px 14px;
-      border-radius: var(--radius-md);
-      border: 1px solid var(--border-light);
-      font-family: inherit;
-      font-size: 14px;
-      background: #FAFCFE;
-      transition: var(--transition);
-    }
-    .reminder-box select:focus,
-    .reminder-box textarea:focus,
-    .share-box textarea:focus {
-      outline: none;
-      border-color: var(--primary);
-      box-shadow: 0 0 0 3px rgba(26, 59, 92, 0.1);
-    }
-    .reminder-box textarea,
-    .share-box textarea {
-      height: 100px;
-      resize: vertical;
-    }
-    .rem-actions, .share-actions {
-      display: flex;
-      gap: 10px;
-      margin: 20px 0 16px;
-    }
-    .rem-actions button, .share-actions button {
-      flex: 1;
-      padding: 12px 8px;
-      font-size: 13px;
-      background: var(--primary);
-      color: white;
-      border: none;
-      border-radius: 40px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: var(--transition);
-    }
-    .rem-actions button:hover, .share-actions button:hover {
-      background: var(--primary-light);
-    }
-    .close-btn {
-      width: 100%;
-      padding: 12px;
-      background: transparent;
-      border: 1px solid var(--border-light);
-      color: var(--text-muted);
-      border-radius: 40px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: var(--transition);
-    }
-    .close-btn:hover {
-      background: #F0F4FA;
-    }
-    
-    /* Performance indicator */
-    .perf-badge {
-      position: fixed;
-      bottom: 80px;
-      right: 10px;
-      background: rgba(0,0,0,0.7);
-      color: #0B753D;
-      padding: 4px 10px;
-      border-radius: 20px;
-      font-size: 10px;
-      font-family: monospace;
-      z-index: 1000;
-      pointer-events: none;
-    }
-
-    /* ---------- MOBILE OPTIMIZATION (max-width: 640px) ---------- */
-    @media (max-width: 640px) {
-      body { padding-bottom: 80px; }
-      .content { padding: 0 16px; }
-      header { padding: 12px 16px; }
-      .app-title { font-size: 18px; gap: 8px; }
-      .app-title i { font-size: 24px; }
-      .dashboard-icon { font-size: 12px; padding: 8px; }
-      .dashboard-icon i { font-size: 20px; }
-      .customer-header { padding: 20px 18px 18px; margin-bottom: 20px; border-radius: var(--radius-lg); }
-      .name-row { gap: 10px; }
-      .cust-name { font-size: 22px; }
-      .st-icon { padding: 4px 10px; font-size: 11px; }
-      .header-actions { gap: 8px; }
-      .action-icon { font-size: 18px; padding: 8px; }
-      .header-sub { gap: 12px; margin-top: 10px; }
-      .cust-id { font-size: 12px; }
-      .group-badge { padding: 6px 14px; font-size: 12px; }
-      .grid-summary { grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 20px; }
-      .stat-card { padding: 16px 12px; border-radius: var(--radius-md); }
-      .stat-header { margin-bottom: 8px; gap: 6px; }
-      .stat-header i { font-size: 20px; }
-      .stat-label { font-size: 10px; letter-spacing: 0.3px; }
-      .stat-value { font-size: 17px; }
-      .section-title { font-size: 18px; margin: 24px 0 14px; gap: 8px; }
-      .table-wrapper { border-radius: var(--radius-md); }
-      table { min-width: 600px; font-size: 12px; }
-      th, td { padding: 14px 12px; }
-      td:first-child { min-width: 150px; }
-      th { font-size: 10px; }
-      .grid-dynamic { grid-template-columns: repeat(2, 1fr) !important; }
-      .grid-item-ui { padding: 16px 14px; }
-      .group-header-dark { padding: 16px 20px; }
-      .member-card { padding: 16px 18px; }
-      .member-name { font-size: 18px; }
-      .member-metrics { grid-template-columns: 1fr; gap: 8px; }
-      .member-header { flex-wrap: wrap; gap: 12px; }
-      .days-badge { font-size: 12px; padding: 4px 10px; }
-      .bottom-nav { height: 70px; }
-      .nav-item { font-size: 10px; gap: 4px; margin: 4px 2px; }
-      .nav-item i { font-size: 22px; }
-      .search-input { padding: 14px 18px; font-size: 15px; }
-      .search-result-item { padding: 16px; margin-bottom: 10px; }
-      .tab-btn { padding: 12px; font-size: 14px; }
-      .chip-label { padding: 8px 16px; font-size: 13px; }
-      button { padding: 14px 20px; font-size: 14px; }
-      .reminder-modal, .share-modal { padding: 16px; }
-      .reminder-box, .share-box { padding: 22px 18px; max-width: 100%; }
-      .rem-title, .share-title { font-size: 18px; margin-bottom: 16px; }
-      .perf-badge { bottom: 90px; font-size: 9px; }
-    }
-    @media (max-width: 380px) {
-      .cust-name { font-size: 20px; }
-      .grid-summary { grid-template-columns: 1fr; }
-      .stat-card { padding: 14px 12px; }
-    }
-
-    /* Offline banner */
-    .offline-banner {
-      background: var(--warning);
-      color: #1A1A1A;
-      text-align: center;
-      padding: 8px 16px;
-      font-size: 13px;
-      font-weight: 500;
-      position: sticky;
-      top: 0;
-      z-index: 101;
-    }
-  </style>
-</head>
-<body>
-<div id="loader" class=""><div class="spinner"></div></div>
-<div id="offlineBanner" class="offline-banner hidden">⚠️ You are offline. Showing cached data.</div>
-<div id="perfBadge" class="perf-badge hidden"></div>
-
-<header>
-  <div class="header-left">
-    <i class="material-icons-round" style="color:var(--primary); font-size:28px;">account_balance</i>
-    <div class="app-title">Behind Schedule</div>
-  </div>
-  <div class="dashboard-icon" onclick="openDashboard()" title="Open Dashboard">
-    <i class="material-icons-round">dashboard</i> Dashboard
-  </div>
-</header>
-
-<main>
-  <div id="view-search" class="view">
-    <div style="padding:24px 20px 12px 20px;"><input type="text" id="searchInp" class="search-input" placeholder="🔍 Search by customer name or CIF..."></div>
-    <div id="results" class="content"></div>
-  </div>
-
-  <div id="view-detail" class="view hidden">
-    <div class="content" style="padding-top:24px;">
-      <div class="customer-header">
-        <div class="header-left">
-          <div class="name-row">
-            <h2 id="det-name" class="cust-name"></h2>
-            <div id="det-status" class="inline-status"></div>
-            <div class="header-actions">
-              <span class="action-icon" onclick="openShareModal()" title="Share Account Details">📤</span>
-              <span class="action-icon" onclick="openReminderPopup()" title="Send Reminder">🔔</span>
-            </div>
-          </div>
-          <div class="header-sub">
-            <div id="det-id" class="cust-id"></div>
-            <div id="det-group-tag" class="group-badge" onclick="navTo('group')"></div>
-          </div>
-        </div>
-      </div>
-      <div class="grid-summary">
-        <div class="stat-card"><div class="stat-header"><i class="material-icons-round">account_balance_wallet</i><div class="stat-label">Net Overdue</div></div><div class="stat-value" id="v-net-ovd"></div></div>
-        <div class="stat-card"><div class="stat-header"><i class="material-icons-round">request_quote</i><div class="stat-label">Total Overdue</div></div><div class="stat-value" id="v-tot-ovd"></div></div>
-        <div class="stat-card"><div class="stat-header"><i class="material-icons-round">security</i><div class="stat-label">NPA Saver</div></div><div class="stat-value" id="v-npa"></div></div>
-        <div class="stat-card"><div class="stat-header"><i class="material-icons-round">health_and_safety</i><div class="stat-label">WL Saver</div></div><div class="stat-value" id="v-wl"></div></div>
-        <div class="stat-card"><div class="stat-header"><i class="material-icons-round">event_busy</i><div class="stat-label">OVD Days</div></div><div class="stat-value" id="v-days"></div></div>
-        <div class="stat-card"><div class="stat-header"><i class="material-icons-round">account_balance</i><div class="stat-label">Total Loan</div></div><div class="stat-value" id="v-loan"></div></div>
-        <div class="stat-card"><div class="stat-header"><i class="material-icons-round">savings</i><div class="stat-label">Op. Balance</div></div><div class="stat-value" id="v-op"></div></div>
-        <div class="stat-card"><div class="stat-header"><i class="material-icons-round">autorenew</i><div class="stat-label">Renewal</div></div><div class="stat-value" id="v-renewal" style="font-size:20px;"></div></div>
-      </div>
-      <div class="section-title"><i class="material-icons-round">contacts</i> Contact Information</div>
-      <div class="grid-summary" id="contact-grid"></div>
-      <div class="section-title"><i class="material-icons-round">receipt_long</i> Loan Portfolio Details</div>
-      <div class="table-wrapper">
-        <div class="table-card">
-          <table id="tbl-loan">
-            <thead><tr><th style="min-width: 180px;">Scheme & Account</th><th>Outstanding</th><th>Rate</th><th>NPA Saver</th><th>WL Saver</th><th>Net OVD</th></tr></thead>
-            <tbody></tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div id="view-group" class="view hidden">
-    <div class="content" style="padding-top:24px;" id="group-content"></div>
-  </div>
-
-  <div id="view-insights" class="view hidden">
-    <div class="content">
-      <div class="tab-group">
-        <div id="tab-daily" class="tab-btn active" onclick="switchTab('daily')">Monthly Breakdown</div>
-        <div id="tab-nepali" class="tab-btn" onclick="switchTab('nepali')">Nepali Filters</div>
-      </div>
-      <div id="pane-daily">
-        <div class="table-wrapper">
-          <table id="dailyTable">
-            <thead><tr><th>Date</th><th>Total OVD</th><th>Int</th><th>Prin</th><th>Penal</th></tr></thead>
-            <tbody id="body-daily"></tbody>
-            <tfoot id="foot-daily"></tfoot>
-          </table>
-        </div>
-      </div>
-      <div id="pane-nepali" class="hidden">
-        <div class="filter-box" style="background:white; border-radius:28px; padding:24px; margin-bottom:24px; border:1px solid var(--border-light); box-shadow:var(--shadow-sm);">
-          <div class="stat-label" style="margin-bottom:14px;">Select Year(s)</div>
-          <div id="year-chips" class="chip-container" style="display:flex; flex-wrap:wrap; gap:10px;"></div>
-          <div class="stat-label" style="margin:20px 0 14px;">Select Month(s) → swipe</div>
-          <div id="month-chips" class="month-slider-track"></div>
-          <button onclick="applySlicer()" style="margin-top:24px; width:100%;">Apply Filters</button>
-        </div>
-        <div class="table-wrapper">
-          <table id="nepaliTable">
-            <thead><tr><th>Month</th><th>Total OVD</th><th>Int</th><th>Prin</th><th>Penal</th></tr></thead>
-            <tbody id="body-nepali"></tbody>
-            <tfoot id="foot-nepali"></tfoot>
-          </table>
-        </div>
-      </div>
-    </div>
-  </div>
-</main>
-
-<nav class="bottom-nav">
-  <div class="nav-item active" id="n-search" onclick="navTo('search')"><i class="material-icons-round">search</i><span>Search</span></div>
-  <div class="nav-item" id="n-detail" onclick="navTo('detail')"><i class="material-icons-round">dashboard</i><span>Summary</span></div>
-  <div class="nav-item" id="n-group" onclick="navTo('group')"><i class="material-icons-round">groups</i><span>Group</span></div>
-  <div class="nav-item" id="n-insights" onclick="navTo('insights')"><i class="material-icons-round">insights</i><span>Insights</span></div>
-</nav>
-
-<!-- Share Modal -->
-<div id="shareModal" class="share-modal hidden">
-  <div class="share-box">
-    <div class="share-title">📤 Share Account Details</div>
-    <label>Message Preview</label>
-    <textarea id="sharePreview" readonly></textarea>
-    <div class="share-actions">
-      <button onclick="copyAccountInfoFromModal()">📋 Copy</button>
-      <button onclick="shareViaWhatsAppFromModal()">💬 WhatsApp</button>
-      <button onclick="shareViaSMSFromModal()">📱 SMS</button>
-    </div>
-    <button class="close-btn" onclick="closeShareModal()">Close</button>
-  </div>
-</div>
-
-<!-- Reminder Modal -->
-<div id="reminderModal" class="reminder-modal hidden">
-  <div class="reminder-box">
-    <div class="rem-title">📨 Send Reminder</div>
-    <label>Language</label>
-    <select id="remLang" onchange="updatePreview()">
-      <option value="EN">English</option>
-      <option value="NP">Nepali</option>
-    </select>
-    <label>Contact</label>
-    <select id="remContact" onchange="updatePreview()">
-      <option value="primary">Primary Contact</option>
-      <option value="secondary">Additional Contact</option>
-    </select>
-    <label>Message Preview</label>
-    <textarea id="remPreview" readonly></textarea>
-    <div class="rem-actions">
-      <button onclick="copyReminder()">📋 Copy</button>
-      <button onclick="sendWhatsApp()">💬 WhatsApp</button>
-      <button onclick="sendSMS()">📱 SMS</button>
-    </div>
-    <button class="close-btn" onclick="closeReminder()">Close</button>
-  </div>
-</div>
-
-<script>
-  // ========== CONFIGURATION ==========
-  const API_BASE = 'https://script.google.com/macros/s/AKfycbx4Nl5MJm9UjkSskwRAfZmMnN6M5MTtabLuvb5_b48tvnov06LKfrGv_-KRCBjXaBDw/exec';
-  const CACHE_DURATION = 3600000; // 1 hour in milliseconds
+    return ContentService.createTextOutput(json).setMimeType(ContentService.MimeType.JSON);
+  }
   
-  // ========== GLOBAL STATE ==========
-  let fullData = null;
-  let currentCIF = null;
-  let currentGroup = "";
-  let slicerMeta = null;
-  let currentCustomer = { name: '', account: '', renewal: '', primaryPhone: '', secondaryPhone: '' };
+  // Default: serve the main app (index.html)
+  return HtmlService.createHtmlOutputFromFile('Index')
+    .setTitle('Behind Schedule | Overdue Report View System')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no');
+}
+
+// ========== USER AUTHENTICATION ==========
+function authenticateUser(username, password) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('Users');
+  if (!sheet) {
+    return { success: false, error: 'User database not found' };
+  }
   
-  const NEPALI_MONTHS = ["Baisakh","Jestha","Ashadh","Shrawan","Bhadra","Ashwin","Kartik","Mangsir","Poush","Magh","Falgun","Chaitra"];
-  const fAmt = (n) => '₹ ' + (Math.abs(n) <= 0.0001 ? "0.00" : parseFloat(n).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}));
-  const toggleLoader = (show) => document.getElementById('loader').classList.toggle('hidden', !show);
+  const data = sheet.getDataRange().getDisplayValues();
+  if (data.length < 2) {
+    return { success: false, error: 'No users found' };
+  }
   
-  // ========== INDEXEDDB HELPERS ==========
-  function openIndexedDB() {
-    return new Promise((resolve, reject) => {
-      const request = indexedDB.open('CRM_Cache_V2', 1);
-      request.onupgradeneeded = (event) => {
-        const db = event.target.result;
-        if (!db.objectStoreNames.contains('fullData')) {
-          db.createObjectStore('fullData', { keyPath: 'key' });
+  const headers = data[0];
+  const userIdCol = headers.indexOf('User ID');
+  const usernameCol = headers.indexOf('Username');
+  const passwordCol = headers.indexOf('Password');
+  const statusCol = headers.indexOf('Status');
+  
+  if (usernameCol === -1 || passwordCol === -1 || statusCol === -1) {
+    return { success: false, error: 'Invalid Users sheet format' };
+  }
+  
+  const normalizedUsername = username.trim().toLowerCase();
+  
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    const sheetUsername = (row[usernameCol] || '').trim().toLowerCase();
+    const sheetPassword = (row[passwordCol] || '').trim();
+    const sheetStatus = (row[statusCol] || '').trim();
+    
+    if (sheetUsername === normalizedUsername && sheetPassword === password) {
+      if (sheetStatus !== 'Active') {
+        return { success: false, error: 'Account is not active' };
+      }
+      return {
+        success: true,
+        user: {
+          userId: row[userIdCol] || '',
+          username: sheetUsername,
+          status: sheetStatus
         }
       };
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
-  }
-  
-  async function saveToIndexedDB(key, data) {
-    try {
-      const db = await openIndexedDB();
-      const tx = db.transaction('fullData', 'readwrite');
-      const store = tx.objectStore('fullData');
-      store.put({ key: key, data: data, timestamp: Date.now() });
-      await new Promise((resolve, reject) => {
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error);
-      });
-      db.close();
-      return true;
-    } catch (e) {
-      console.warn('IndexedDB save failed:', e);
-      return false;
     }
   }
   
-  async function getFromIndexedDB(key) {
-    try {
-      const db = await openIndexedDB();
-      const tx = db.transaction('fullData', 'readonly');
-      const store = tx.objectStore('fullData');
-      const result = await new Promise((resolve, reject) => {
-        const get = store.get(key);
-        get.onsuccess = () => resolve(get.result);
-        get.onerror = () => reject(get.error);
-      });
-      db.close();
-      return result;
-    } catch (e) {
-      console.warn('IndexedDB read failed:', e);
-      return null;
-    }
+  return { success: false, error: 'Invalid username or password' };
+}
+
+// ========== EXISTING FUNCTIONS ==========
+const isValid = (val) => { const n = Number(val); return !isNaN(n) && n > 0.0001; };
+
+function getCategoryCriteria() {
+  if (CATEGORY_CRITERIA) return CATEGORY_CRITERIA;
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const dropSheet = ss.getSheetByName('Drop');
+  if (!dropSheet) return getDefaultCategories();
+
+  let range;
+  try { range = ss.getRangeByName('Category'); } catch (e) { range = null; }
+
+  if (!range) {
+    const data = dropSheet.getDataRange().getDisplayValues();
+    const headerRow = data.findIndex(row => row.includes('DatefROM') && row.includes('DateTo'));
+    if (headerRow === -1) return getDefaultCategories();
+    const headers = data[headerRow];
+    const minCol = headers.indexOf('DatefROM');
+    const maxCol = headers.indexOf('DateTo');
+    const actualCol = headers.indexOf('Category_Actual');
+    const probableCol = headers.indexOf('Category_Probable');
+    if (minCol === -1 || maxCol === -1 || actualCol === -1 || probableCol === -1) return getDefaultCategories();
+    const rows = data.slice(headerRow + 1).filter(row => row[minCol] && row[maxCol]);
+    const criteria = rows.map(row => ({
+      min: parseInt(row[minCol]) || 0,
+      max: parseInt(row[maxCol]) || 9999999,
+      actual: row[actualCol]?.trim() || 'Pass',
+      probable: row[probableCol]?.trim() || 'Pass'
+    })).sort((a, b) => a.min - b.min);
+    CATEGORY_CRITERIA = criteria;
+    return criteria;
   }
-  
-  // ========== BACKEND API ==========
-  async function callBackend(action, params = {}) {
-    const url = new URL(API_BASE);
-    url.searchParams.append('action', action);
-    Object.keys(params).forEach(key => {
-      if (params[key] !== undefined && params[key] !== null) {
-        if (Array.isArray(params[key])) {
-          url.searchParams.append(key, JSON.stringify(params[key]));
-        } else {
-          url.searchParams.append(key, params[key]);
-        }
+
+  const values = range.getDisplayValues();
+  const headers = values[0];
+  const minCol = headers.indexOf('DatefROM');
+  const maxCol = headers.indexOf('DateTo');
+  const actualCol = headers.indexOf('Category_Actual');
+  const probableCol = headers.indexOf('Category_Probable');
+  if (minCol === -1 || maxCol === -1 || actualCol === -1 || probableCol === -1) return getDefaultCategories();
+  const criteria = values.slice(1).filter(row => row[minCol] && row[maxCol]).map(row => ({
+    min: parseInt(row[minCol]) || 0,
+    max: parseInt(row[maxCol]) || 9999999,
+    actual: row[actualCol]?.trim() || 'Pass',
+    probable: row[probableCol]?.trim() || 'Pass'
+  })).sort((a, b) => a.min - b.min);
+  CATEGORY_CRITERIA = criteria;
+  return criteria;
+}
+
+function getDefaultCategories() {
+  return [
+    { min: 0, max: 29, actual: 'Pass', probable: 'Pass' },
+    { min: 30, max: 89, actual: 'WL', probable: 'PWL' },
+    { min: 90, max: 9999999, actual: 'NPA', probable: 'PNPA' }
+  ];
+}
+
+function getSheetData() {
+  if (GLOBAL_DATA) return GLOBAL_DATA;
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName("Data");
+  if (!sheet) throw new Error("Sheet 'Data' not found.");
+  const range = sheet.getDataRange();
+  const rawValues = range.getValues();
+  const displayValues = range.getDisplayValues();
+  const headers = rawValues[0].map(h => String(h).trim());
+  const data = [];
+  for (let i = 1; i < rawValues.length; i++) {
+    let obj = {};
+    headers.forEach((header, j) => {
+      if (["OVD_DATE", "NEPALI_OVD_Month", "NEPALI_OVD_Year", "CIF_ID", "ACCOUNT_NO", "CUSTOMER_GROUP", "RENEWAL", "CATEGORY_ACTUAL", "CATEGORY_PROBABLE"].includes(header)) {
+        obj[header] = String(displayValues[i][j]).trim();
+      } else {
+        obj[header] = rawValues[i][j];
       }
     });
-    
-    const response = await fetch(url.toString());
-    return await response.json();
+    data.push(obj);
   }
-  
-  // ========== LOAD FULL DATA (ONE TIME) ==========
-  async function loadFullData() {
-    toggleLoader(true);
-    const startTime = performance.now();
-    
-    // Try IndexedDB first
-    const cached = await getFromIndexedDB('fullData');
-    if (cached && (Date.now() - cached.timestamp) < CACHE_DURATION) {
-      fullData = cached.data;
-      const elapsed = (performance.now() - startTime).toFixed(0);
-      console.log(`Data loaded from IndexedDB in ${elapsed}ms`);
-      showPerfBadge(`Cached: ${elapsed}ms`);
-      toggleLoader(false);
-      setupSearch();
-      return true;
-    }
-    
-    // Fetch from network
-    if (!navigator.onLine) {
-      toggleLoader(false);
-      alert("You are offline and no cached data is available. Please connect to the internet.");
-      return false;
-    }
-    
-    try {
-      const data = await callBackend('loadFullData');
-      fullData = data;
-      await saveToIndexedDB('fullData', data);
-      const elapsed = (performance.now() - startTime).toFixed(0);
-      console.log(`Data loaded from network in ${elapsed}ms - ${fullData.customers?.length || 0} customers`);
-      showPerfBadge(`Loaded: ${elapsed}ms`);
-      toggleLoader(false);
-      setupSearch();
-      return true;
-    } catch (error) {
-      console.error('Failed to load data:', error);
-      toggleLoader(false);
-      alert("Failed to load data. Please check your connection and try again.");
-      return false;
-    }
+  GLOBAL_DATA = data;
+  return data;
+}
+
+function preloadCache() {
+  try {
+    getSheetData();
+    getCategoryCriteria();
+    return { status: 'OK' };
+  } catch (e) {
+    return { error: e.toString() };
   }
-  
-  function showPerfBadge(text) {
-    const badge = document.getElementById('perfBadge');
-    badge.textContent = `⚡ ${text}`;
-    badge.classList.remove('hidden');
-    setTimeout(() => badge.classList.add('hidden'), 3000);
-  }
-  
-  // ========== SEARCH (FROM CACHE) ==========
-  function setupSearch() {
-    const inp = document.getElementById('searchInp');
-    if (!inp) return;
-    
-    inp.oninput = () => {
-      const val = inp.value.trim().toUpperCase();
-      const resultsDiv = document.getElementById('results');
-      resultsDiv.innerHTML = '';
-      
-      if (!val || !fullData?.customers) return;
-      
-      const filtered = fullData.customers.filter(c => 
-        c.name.toUpperCase().includes(val) || c.id.includes(val)
-      ).slice(0, 20);
-      
-      filtered.forEach(c => {
-        const div = document.createElement('div');
-        div.className = 'search-result-item';
-        div.innerHTML = `<div><div style="font-weight:700; font-size:16px;">${c.name}</div><div style="color:var(--text-muted); font-size:12px; margin-top:6px;">CIF: ${c.id}</div></div><i class="material-icons-round" style="color:var(--primary);">arrow_forward_ios</i>`;
-        div.onclick = () => {
-          currentCIF = c.id;
-          navTo('detail');
-        };
-        resultsDiv.appendChild(div);
-      });
-    };
-  }
-  
-  // ========== GET DATA FROM CACHE ==========
-  function getCustomerMetricsFromCache(cifId) {
-    return fullData?.allMetrics?.find(m => m.CIF_ID === cifId) || null;
-  }
-  
-  function getGroupFromCache(groupName) {
-    return fullData?.groups?.find(g => g.summary.groupName === groupName) || null;
-  }
-  
-  // ========== RENDER FUNCTIONS ==========
-  function getStatusIcons(actual, probable) {
-    actual = (actual || '').toString().trim().toUpperCase();
-    probable = (probable || '').toString().trim().toUpperCase();
-    let actCls = 'st-act-pass';
-    if (actual.includes('NPA')) actCls = 'st-act-npa';
-    else if (actual.includes('WL')) actCls = 'st-act-wl';
-    let probCls = 'st-prob-pass';
-    if (probable.includes('PNPA')) probCls = 'st-prob-npa';
-    else if (probable.includes('PWL')) probCls = 'st-prob-wl';
-    return `<div class="st-icon ${actCls}">${actual}</div><div class="st-icon ${probCls}">${probable}</div>`;
-  }
-  
-  function renderMetrics(m) {
-    if (!m) return;
-    
-    document.getElementById('det-name').innerText = m.CUSTOMER_NAME;
-    document.getElementById('det-id').innerHTML = "🆔 CIF: " + m.CIF_ID;
-    currentGroup = (m.CUSTOMER_GROUP || "NO GROUP").trim();
-    const hasGroup = (currentGroup && currentGroup.toUpperCase() !== "NO GROUP");
-    if (hasGroup) {
-      document.getElementById('det-group-tag').innerHTML = `<i class="material-icons-round" style="font-size:16px;">groups</i> ${currentGroup}`;
-      document.getElementById('det-group-tag').style.display = 'inline-flex';
-      document.getElementById('n-group').style.display = 'flex';
-    } else {
-      document.getElementById('det-group-tag').style.display = 'none';
-      document.getElementById('n-group').style.display = 'none';
-    }
-    document.getElementById('det-status').innerHTML = getStatusIcons(m.CATEGORY_ACTUAL, m.CATEGORY_PROBABLE);
-    document.getElementById('v-net-ovd').innerHTML = fAmt(m.TOTAL_OVERDUE_NET);
-    document.getElementById('v-tot-ovd').innerHTML = fAmt(m.TOT_OVD_AMT);
-    document.getElementById('v-npa').innerHTML = fAmt(m.MIN_BAL_NPA);
-    document.getElementById('v-wl').innerHTML = fAmt(m.MIN_BAL_WL);
-    document.getElementById('v-loan').innerHTML = fAmt(m.OUTSTANDING_LOAN);
-    document.getElementById('v-op').innerHTML = fAmt(m.OP_BALANCE);
-    document.getElementById('v-days').innerHTML = m.MAX_OVD_DAYS;
-    document.getElementById('v-renewal').innerHTML = m.RENEWAL;
-    
-    const accounts = m.accounts || [];
-    document.querySelector("#tbl-loan tbody").innerHTML = accounts.map(a => `
-      <tr>
-        <td style="white-space: normal; min-width: 180px;"><b>${a.SCHEME}</b><br><span style="color:var(--text-muted); font-size:11px;">${a.ACCOUNT_NO}</span></td>
-        <td>${fAmt(a.OUTSTANDING_LOAN)}</td>
-        <td><span style="background:#EEF4FF; padding:4px 12px; border-radius:30px; font-weight:600;">${a.FULL_RATE}%</span></td>
-        <td>${fAmt(a.MIN_BAL_NPA)}</td>
-        <td>${fAmt(a.MIN_BAL_WL)}</td>
-        <td style="color:var(--danger); font-weight:700;">${fAmt(a.NET_OVD)}</td>
-      </tr>
-    `).join('');
-    
-    currentCustomer.name = m.CUSTOMER_NAME;
-    currentCustomer.renewal = m.RENEWAL;
-    
-    // Contact info - load separately (small request)
-    loadContactInfo();
-  }
-  
-  async function loadContactInfo() {
-    const grid = document.getElementById("contact-grid");
-    if (!grid || !currentCIF) return;
-    
-    grid.innerHTML = '<div class="stat-card">Loading contact info...</div>';
-    
-    if (navigator.onLine) {
-      try {
-        const c = await callBackend('extraDetails', { cifId: currentCIF });
-        function formatPhones(str) { 
-          if (!str) return '-'; 
-          return str.split(';').filter(p=>p.trim()).map(p => `<div><a href="tel:${p}" style="text-decoration:none;color:var(--primary);">${p}</a> <span class="copy-btn" onclick="navigator.clipboard.writeText('${p}')"><i class="material-icons-round" style="font-size:16px;">content_copy</i></span></div>`).join(''); 
-        }
-        if (!c) { 
-          grid.innerHTML = "<div class='stat-card'>No contact info</div>"; 
-          currentCustomer.account = '-';
-          currentCustomer.primaryPhone = '';
-          currentCustomer.secondaryPhone = '';
-          return; 
-        }
-        currentCustomer.account = c.OP_ACCOUNT || '-';
-        currentCustomer.primaryPhone = (c.Contact_No || '').split(';')[0]?.trim() || '';
-        currentCustomer.secondaryPhone = (c.Additional_Contact_Number || '').split(';')[0]?.trim() || '';
-        
-        let html = `<div class="stat-card"><div class="stat-label">Primary Contact</div><div class="stat-value" style="font-size:16px;">${c.Contact_Person_Name || '-'}<br>${formatPhones(c.Contact_No)}</div></div>`;
-        if (c.Additional_Contact_Number || c.Additional_Person) { 
-          html += `<div class="stat-card"><div class="stat-label">Additional Contact</div><div class="stat-value" style="font-size:16px;">${c.Additional_Person || '-'} ${c.Additional_Person_Relation ? `(${c.Additional_Person_Relation})` : ''}<br>${formatPhones(c.Additional_Contact_Number)}</div></div>`; 
-        }
-        grid.innerHTML = html;
-      } catch (err) { 
-        grid.innerHTML = "<div class='stat-card'>Contact info unavailable</div>"; 
-      }
-    } else {
-      grid.innerHTML = "<div class='stat-card'>Contact info unavailable offline</div>";
-    }
-  }
-  
-  function renderGroup(groupData) {
-    if (!groupData || !groupData.summary) { 
-      document.getElementById('group-content').innerHTML = '<div class="group-card" style="padding:24px;text-align:center;">No group data</div>'; 
-      return; 
-    }
-    
-    let html = `<div class="group-card">
-      <div class="group-header-dark">
-        <div style="font-size:22px; font-weight:800;">${groupData.summary.groupName}</div>
-      </div>
-      <div class="grid-dynamic" style="grid-template-columns: repeat(3,1fr);">
-        <div class="grid-item-ui"><div class="stat-label">UNITS</div><div class="stat-value">${groupData.summary.unitCount}</div></div>
-        <div class="grid-item-ui"><div class="stat-label">TOTAL LOAN</div><div class="stat-value">${fAmt(groupData.summary.totalLoan)}</div></div>
-        <div class="grid-item-ui"><div class="stat-label">TOTAL OVERDUE</div><div class="stat-value">${fAmt(groupData.summary.totalOvd)}</div></div>
-        <div class="grid-item-ui"><div class="stat-label">NET OVERDUE</div><div class="stat-value" style="color:var(--danger);">${fAmt(groupData.summary.totalNetOvd)}</div></div>
-        <div class="grid-item-ui"><div class="stat-label">MIN NPA SAVER</div><div class="stat-value">${fAmt(groupData.summary.minNpa)}</div></div>
-        <div class="grid-item-ui"><div class="stat-label">MIN WL SAVER</div><div class="stat-value">${fAmt(groupData.summary.minWl)}</div></div>
-      </div>
-    </div>`;
-    
-    (groupData.units || []).forEach(u => {
-      html += `
-        <div class="member-card">
-          <div class="member-header">
-            <div>
-              <div class="member-name">${u.name}</div>
-              <div class="member-sub">${groupData.summary.groupName}</div>
-            </div>
-            <div class="member-badges">
-              ${getStatusIcons(u.actual, u.probable)}
-            </div>
-          </div>
-          <div class="member-metrics">
-            <div class="metric-item"><span class="metric-label">Total Overdue</span><span class="metric-value">${fAmt(u.totalOvd)}</span></div>
-            <div class="metric-item"><span class="metric-label">Net Overdue</span><span class="metric-value" style="color:var(--danger);">${fAmt(u.totalNetOvd)}</span></div>
-            <div class="metric-item"><span class="metric-label">Min NPA Saver</span><span class="metric-value">${fAmt(u.minNpa)}</span></div>
-            <div class="metric-item"><span class="metric-label">Min WL Saver</span><span class="metric-value">${fAmt(u.minWl)}</span></div>
-          </div>
-        </div>
-      `;
-    });
-    
-    document.getElementById('group-content').innerHTML = html;
-  }
-  
-  // ========== NAVIGATION ==========
-  function navTo(view) {
-    if (view === 'group') {
-      if (!currentGroup || currentGroup.toUpperCase() === "NO GROUP") {
-        alert("No group information available for this customer.");
-        return;
-      }
-      loadGroupDetails();
-    } else if (view === 'detail') {
-      if (!currentCIF) {
-        alert("Please select a customer first.");
-        return;
-      }
-      loadDetails();
-    } else if (view === 'insights') {
-      if (!currentCIF) {
-        alert("Please select a customer first.");
-        return;
-      }
-      loadInsights();
-    }
-    
-    document.querySelectorAll('.view').forEach(e => e.classList.add('hidden'));
-    document.querySelectorAll('.nav-item').forEach(e => e.classList.remove('active'));
-    document.getElementById('view-' + view).classList.remove('hidden');
-    document.getElementById('n-' + view).classList.add('active');
-  }
-  
-  function loadDetails() {
-    const metrics = getCustomerMetricsFromCache(currentCIF);
-    if (metrics) {
-      renderMetrics(metrics);
-    } else {
-      document.getElementById('det-name').innerText = 'Customer not found';
-    }
-  }
-  
-  function loadGroupDetails() {
-    const groupData = getGroupFromCache(currentGroup);
-    if (groupData) {
-      renderGroup(groupData);
-    } else {
-      document.getElementById('group-content').innerHTML = '<div class="group-card" style="padding:24px;text-align:center;">Group data not found</div>';
-    }
-  }
-  
-  async function loadInsights() {
-    toggleLoader(true);
-    try {
-      const res = await callBackend('overdue', { cifId: currentCIF });
-      document.getElementById('body-daily').innerHTML = (res.rows || []).map(r => `<tr><td style="font-weight:600;">${r.OVD_DATE}</td><td>${fAmt(r.TOT_OVD_AMT)}</td><td>${fAmt(r.I_OVD)}</td><td>${fAmt(r.P_OVD)}</td><td>${fAmt(r.PENAL_INT)}</td>`).join('');
-      document.getElementById('foot-daily').innerHTML = `<tr><td>TOTAL</td><td>${fAmt(res.total?.TOT_OVD_AMT || 0)}</td><td>${fAmt(res.total?.I_OVD || 0)}</td><td>${fAmt(res.total?.P_OVD || 0)}</td><td>${fAmt(res.total?.PENAL_INT || 0)}</td>`);
-      
-      const meta = await callBackend('slicerOptions', { cifId: currentCIF });
-      slicerMeta = meta;
-      renderFilters(meta.years || [], meta.months || []);
-      await applySlicer();
-      toggleLoader(false);
-    } catch (err) {
-      console.error('Failed to load insights', err);
-      toggleLoader(false);
-      alert("Failed to load insights data");
-    }
-  }
-  
-  function renderFilters(years, months) {
-    const yrHtml = [`<label><input type="checkbox" class="check-chip yr-chip" value="ALL" checked onchange="toggleAllYears(this)"><div class="chip-label">ALL</div></label>`];
-    years.forEach(y => yrHtml.push(`<label><input type="checkbox" class="check-chip yr-chip sub-yr" value="${y}" checked><div class="chip-label">${y}</div></label>`));
-    document.getElementById('year-chips').innerHTML = yrHtml.join('');
-    if (months && months.length) { 
-      document.getElementById('month-chips').innerHTML = months.map(m => `<label><input type="checkbox" class="check-chip mn-chip" value="${m}" checked><div class="chip-label">${m}</div></label>`).join('');
-    } else { 
-      document.getElementById('month-chips').innerHTML = '<div style="padding:10px;">No monthly data</div>'; 
-    }
-  }
-  
-  function toggleAllYears(allCheck) { 
-    document.querySelectorAll('.sub-yr').forEach(cb => cb.checked = allCheck.checked); 
-  }
-  
-  async function applySlicer() {
-    const checkedYears = Array.from(document.querySelectorAll('.yr-chip:checked')).map(i => i.value);
-    const checkedMonths = Array.from(document.querySelectorAll('.mn-chip:checked')).map(i => i.value);
-    const d = await callBackend('slicerSummary', { cifId: currentCIF, years: checkedYears, months: checkedMonths });
-    let t_ovd = 0, t_i = 0, t_p = 0, t_pen = 0;
-    document.getElementById('body-nepali').innerHTML = d.map(r => { 
-      t_ovd += r.TOT_OVD_AMT; t_i += r.I_OVD; t_p += r.P_OVD; t_pen += r.PENAL_INT;
-      return `<tr><td style="font-weight:600;">${r.NEPALI_OVD_Month}</td><td>${fAmt(r.TOT_OVD_AMT)}</td><td>${fAmt(r.I_OVD)}</td><td>${fAmt(r.P_OVD)}</td><td>${fAmt(r.PENAL_INT)}</td>`);
-    }).join('');
-    document.getElementById('foot-nepali').innerHTML = `<tr><td>TOTAL</td><td>${fAmt(t_ovd)}</td><td>${fAmt(t_i)}</td><td>${fAmt(t_p)}</td><td>${fAmt(t_pen)}</td>`);
-  }
-  
-  function switchTab(t) { 
-    document.getElementById('pane-daily').classList.toggle('hidden', t !== 'daily'); 
-    document.getElementById('pane-nepali').classList.toggle('hidden', t !== 'nepali'); 
-    document.getElementById('tab-daily').classList.toggle('active', t === 'daily'); 
-    document.getElementById('tab-nepali').classList.toggle('active', t === 'nepali'); 
-  }
-  
-  // ========== SHARE & REMINDER FUNCTIONS ==========
-  function openDashboard() {
-    window.open(API_BASE + '?page=dashboard', '_blank');
-  }
-  
-  function getAccountShareText() {
-    return `Account Name: ${currentCustomer.name || 'N/A'}\nAccount No.: ${currentCustomer.account || 'N/A'}\nBank: NIC ASIA Bank Limited`;
-  }
-  
-  function openShareModal() {
-    document.getElementById('sharePreview').value = getAccountShareText();
-    document.getElementById('shareModal').classList.remove('hidden');
-  }
-  
-  function closeShareModal() { document.getElementById('shareModal').classList.add('hidden'); }
-  
-  function copyAccountInfoFromModal() {
-    navigator.clipboard.writeText(document.getElementById('sharePreview').value).then(() => {
-      alert("✅ Copied to clipboard");
-      closeShareModal();
-    });
-  }
-  
-  function shareViaWhatsAppFromModal() {
-    window.open(`https://wa.me/?text=${encodeURIComponent(document.getElementById('sharePreview').value)}`, '_blank');
-    closeShareModal();
-  }
-  
-  function shareViaSMSFromModal() {
-    window.location.href = `sms:?body=${encodeURIComponent(document.getElementById('sharePreview').value)}`;
-    closeShareModal();
-  }
-  
-  function openReminderPopup() {
-    document.getElementById('reminderModal').classList.remove('hidden');
-    updatePreview();
-  }
-  
-  function closeReminder() { document.getElementById('reminderModal').classList.add('hidden'); }
-  
-  function getReminderText(lang) {
-    const isExpired = (currentCustomer.renewal || '').toUpperCase() === 'EXPIRED';
-    if (isExpired) {
-      return lang === 'NP'
-        ? "आदरणीय ग्राहकज्यू, तपाईंको कर्जा खातामा बक्यौता रकम बाँकी रहेको र कर्जा खाता नवीकरण गर्नु आवश्यक रहेको जानकारी गराउन चाहन्छौँ। कृपया बक्यौता भुक्तानी तथा नवीकरणका लागि आवश्यक कागजातसहित शीघ्र सम्पर्क गर्नुहुन अनुरोध छ। धन्यवाद।"
-        : "Dear Valued Customer, please be informed that your loan account has an overdue balance and also requires renewal. Kindly clear the overdue amount and contact us with the necessary documents for renewal at your earliest convenience. Thank you.";
-    }
-    return lang === 'NP'
-      ? "आदरणीय ग्राहकज्यू, तपाईंको भुक्तानी समयमै नभएकोले बाँकी रहेको जानकारी गराउन चाहन्छौँ। कृपया छिटो भुक्तानी गरिदिनुहुन अनुरोध छ। धन्यवाद।"
-      : "Dear Customer, this is a gentle reminder that your payment is overdue. Kindly arrange clearance at your earliest convenience. Thank you.";
-  }
-  
-  function updatePreview() {
-    const lang = document.getElementById('remLang')?.value || 'EN';
-    document.getElementById('remPreview').value = getReminderText(lang);
-  }
-  
-  function getSelectedPhone() {
-    const type = document.getElementById('remContact')?.value || 'primary';
-    return type === 'secondary' ? currentCustomer.secondaryPhone : currentCustomer.primaryPhone;
-  }
-  
-  function copyReminder() {
-    navigator.clipboard.writeText(document.getElementById('remPreview').value).then(() => alert('✅ Copied'));
-  }
-  
-  function sendWhatsApp() {
-    const phone = getSelectedPhone();
-    if (!phone) { alert('No phone number available'); return; }
-    const cleanPhone = phone.replace(/[^0-9]/g, '');
-    const fullPhone = cleanPhone.startsWith('977') ? cleanPhone : '977' + cleanPhone;
-    window.open(`https://wa.me/${fullPhone}?text=${encodeURIComponent(document.getElementById('remPreview').value)}`, '_blank');
-  }
-  
-  function sendSMS() {
-    const phone = getSelectedPhone();
-    if (!phone) { alert('No phone number available'); return; }
-    window.location.href = `sms:${phone}?body=${encodeURIComponent(document.getElementById('remPreview').value)}`;
-  }
-  
-  // ========== OFFLINE DETECTION ==========
-  function updateOnlineStatus() {
-    const banner = document.getElementById('offlineBanner');
-    const isOnline = navigator.onLine;
-    if (isOnline) {
-      banner.classList.add('hidden');
-    } else {
-      banner.classList.remove('hidden');
-    }
-  }
-  
-  // ========== SERVICE WORKER REGISTRATION ==========
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js')
-        .then(reg => console.log('Service Worker registered:', reg.scope))
-        .catch(err => console.error('SW registration failed:', err));
-    });
-  }
-  
-  // ========== INITIALIZE APP ==========
-  window.addEventListener('DOMContentLoaded', updateOnlineStatus);
-  window.addEventListener('online', updateOnlineStatus);
-  window.addEventListener('offline', updateOnlineStatus);
-  
-  // Start the app
-  loadFullData().then(success => {
-    if (!success) {
-      // Retry after 5 seconds if offline
-      if (!navigator.onLine) {
-        setTimeout(() => loadFullData(), 5000);
-      }
+}
+
+function getCustomerList() {
+  const data = getSheetData();
+  const lookup = new Map();
+  data.forEach(row => {
+    const cif = row.CIF_ID;
+    const name = String(row.CUSTOMER_NAME || '').trim();
+    if (cif && name && !lookup.has(cif)) {
+      lookup.set(cif, { id: cif, name: name });
     }
   });
-</script>
-</body>
-</html>
+  return Array.from(lookup.values());
+}
+
+function getCustomerMetrics(cifId) {
+  const data = getSheetData();
+  const records = data.filter(r => r.CIF_ID === cifId);
+  if (records.length === 0) return null;
+
+  const first = records[0];
+  let maxOvdDays = 0, maxRevOvdDays = 0;
+  let netOverdue = 0;  // NEW: Track sum of I_OVD + P_OVD
+  
+  records.forEach(r => {
+    const ovd = Number(r.OVD_DAYS) || 0;
+    const rev = Number(r.REV_OVD_DAYS) || 0;
+    if (ovd > maxOvdDays) maxOvdDays = ovd;
+    if (rev > maxRevOvdDays) maxRevOvdDays = rev;
+    
+    // NEW: Accumulate I_OVD and P_OVD for net overdue calculation
+    const iOvd = Number(r.I_OVD) || 0;
+    const pOvd = Number(r.P_OVD) || 0;
+    netOverdue += iOvd + pOvd;
+  });
+  
+  const criteria = getCategoryCriteria();
+  let actualCat = "Pass", probableCat = "Pass";
+  
+  // NEW: Check net overdue first
+  if (Math.abs(netOverdue) < 0.0001) {
+    // Net overdue is zero - force Pass categories
+    actualCat = "Pass";
+    probableCat = "Pass";
+  } else {
+    // Net overdue > 0 - use criteria based on max days
+    for (let rule of criteria) {
+      if (maxOvdDays >= rule.min && maxOvdDays <= rule.max) actualCat = rule.actual;
+      if (maxRevOvdDays >= rule.min && maxRevOvdDays <= rule.max) probableCat = rule.probable;
+    }
+  }
+  
+  let metrics = {
+    CUSTOMER_NAME: first.CUSTOMER_NAME,
+    CIF_ID: first.CIF_ID,
+    CUSTOMER_GROUP: (first.CUSTOMER_GROUP || "NO GROUP").trim(),
+    CATEGORY_ACTUAL: actualCat,
+    CATEGORY_PROBABLE: probableCat,
+    RENEWAL: first.RENEWAL || "N/A",
+    TOT_OVD_AMT: 0,
+    MIN_BAL_NPA: 0,
+    MIN_BAL_WL: 0,
+    MAX_OVD_DAYS: maxOvdDays,
+    OP_BALANCE: 0,
+    OUTSTANDING_LOAN: 0,
+    TOTAL_OVERDUE_NET: 0,
+    NET_OVERDUE: netOverdue,  // NEW: Include for debugging/display
+    accounts: []
+  };
+
+  const accMap = new Map();
+  records.forEach(r => {
+    const accNo = r.ACCOUNT_NO;
+    if (!accNo) return;
+    if (!accMap.has(accNo)) {
+      accMap.set(accNo, {
+        ACCOUNT_NO: accNo,
+        SCHEME: r.SCHEME || "N/A",
+        OUTSTANDING_LOAN: 0,
+        FULL_RATE: r.FULL_RATE || 0,
+        MIN_BAL_NPA: 0,
+        MIN_BAL_WL: 0,
+        SUM_TOT_OVD: 0,
+        SUM_PENAL: 0,
+        NET_OVD: 0
+      });
+    }
+    let a = accMap.get(accNo);
+    const rowLoan = Number(r.OUTSTANDING_LOAN) || 0;
+    if (a.OUTSTANDING_LOAN <= 0.0001 && rowLoan > 0.0001) a.OUTSTANDING_LOAN = rowLoan;
+    if (isValid(r.MIN_BAL_NPA)) a.MIN_BAL_NPA = Math.max(a.MIN_BAL_NPA, Number(r.MIN_BAL_NPA));
+    if (isValid(r.MIN_BAL_WL)) a.MIN_BAL_WL = Math.max(a.MIN_BAL_WL, Number(r.MIN_BAL_WL));
+    const rowOvdAmt = Number(r.TOT_OVD_AMT) || 0;
+    const rowPenal = Number(r.PENAL_INT) || 0;
+    if (isValid(rowOvdAmt)) a.SUM_TOT_OVD += rowOvdAmt;
+    if (isValid(rowPenal)) a.SUM_PENAL += rowPenal;
+  });
+
+  const opRow = records.find(r => isValid(r.OP_BALANCE));
+  metrics.OP_BALANCE = opRow ? Number(opRow.OP_BALANCE) : 0;
+
+  metrics.accounts = Array.from(accMap.values()).map(a => {
+    a.NET_OVD = a.SUM_TOT_OVD - a.SUM_PENAL;
+    metrics.OUTSTANDING_LOAN += a.OUTSTANDING_LOAN;
+    metrics.TOTAL_OVERDUE_NET += a.NET_OVD;
+    metrics.TOT_OVD_AMT += a.SUM_TOT_OVD;
+    metrics.MIN_BAL_NPA += a.MIN_BAL_NPA;
+    metrics.MIN_BAL_WL += a.MIN_BAL_WL;
+    return a;
+  });
+
+  return metrics;
+}
+
+function getGroupDetails(groupName) {
+  const data = getSheetData();
+  const trimmedGroup = String(groupName).trim();
+  const groupRecords = data.filter(r => String(r.CUSTOMER_GROUP).trim() === trimmedGroup);
+  if (groupRecords.length === 0) return null;
+
+  let summary = { groupName: trimmedGroup, totalLoan: 0, totalOvd: 0, totalNetOvd: 0, minNpa: 0, minWl: 0, unitCount: 0 };
+  const cifMap = new Map();
+  const criteria = getCategoryCriteria();  // NEW: Get criteria once for all CIFs
+
+  groupRecords.forEach(r => {
+    if (!cifMap.has(r.CIF_ID)) {
+      cifMap.set(r.CIF_ID, {
+        name: r.CUSTOMER_NAME, 
+        actual: '',           // Will compute later
+        probable: '',         // Will compute later
+        groupName: r.CUSTOMER_GROUP, 
+        records: []
+      });
+    }
+    cifMap.get(r.CIF_ID).records.push(r);
+  });
+
+  summary.unitCount = cifMap.size;
+  const units = [];
+
+  cifMap.forEach((cifData, cifId) => {
+    let u_loan = 0, u_ovd = 0, u_penal = 0, u_npa = 0, u_wl = 0;
+    let accMap = new Map();
+    
+    // NEW: Track days and net overdue for this CIF
+    let maxOvdDays = 0;
+    let maxRevOvdDays = 0;
+    let netOverdue = 0;
+
+    cifData.records.forEach(r => {
+      const accNo = r.ACCOUNT_NO || "UNKNOWN";
+      if (!accMap.has(accNo)) accMap.set(accNo, { loan: 0, ovd: 0, penal: 0, npa: 0, wl: 0 });
+      let a = accMap.get(accNo);
+     
+      const rLoan = Number(r.OUTSTANDING_LOAN) || 0;
+      if (a.loan <= 0.0001 && rLoan > 0.0001) a.loan = rLoan;
+      if (isValid(r.TOT_OVD_AMT)) a.ovd += Number(r.TOT_OVD_AMT);
+      if (isValid(r.PENAL_INT)) a.penal += Number(r.PENAL_INT);
+      if (isValid(r.MIN_BAL_NPA)) a.npa = Math.max(a.npa, Number(r.MIN_BAL_NPA));
+      if (isValid(r.MIN_BAL_WL)) a.wl = Math.max(a.wl, Number(r.MIN_BAL_WL));
+      
+      // NEW: Track max days
+      const ovd = Number(r.OVD_DAYS) || 0;
+      const revOvd = Number(r.REV_OVD_DAYS) || 0;
+      if (ovd > maxOvdDays) maxOvdDays = ovd;
+      if (revOvd > maxRevOvdDays) maxRevOvdDays = revOvd;
+      
+      // NEW: Accumulate net overdue
+      const iOvd = Number(r.I_OVD) || 0;
+      const pOvd = Number(r.P_OVD) || 0;
+      netOverdue += iOvd + pOvd;
+    });
+
+    accMap.forEach(a => { 
+      u_loan += a.loan; 
+      u_ovd += a.ovd; 
+      u_penal += a.penal; 
+      u_npa += a.npa; 
+      u_wl += a.wl; 
+    });
+    const u_netOvd = u_ovd - u_penal;
+
+    summary.totalLoan += u_loan; 
+    summary.totalOvd += u_ovd; 
+    summary.totalNetOvd += u_netOvd;
+    summary.minNpa += u_npa; 
+    summary.minWl += u_wl;
+
+    // NEW: Determine categories based on net overdue
+    let actualCat = "Pass";
+    let probableCat = "Pass";
+    
+    if (Math.abs(netOverdue) < 0.0001) {
+      // Net overdue is zero - force Pass categories
+      actualCat = "Pass";
+      probableCat = "Pass";
+    } else {
+      // Net overdue > 0 - use criteria based on max days
+      for (let rule of criteria) {
+        if (maxOvdDays >= rule.min && maxOvdDays <= rule.max) actualCat = rule.actual;
+        if (maxRevOvdDays >= rule.min && maxRevOvdDays <= rule.max) probableCat = rule.probable;
+      }
+    }
+
+    units.push({
+      name: cifData.name, 
+      actual: actualCat, 
+      probable: probableCat, 
+      groupName: cifData.groupName,
+      totalOvd: u_ovd, 
+      totalNetOvd: u_netOvd, 
+      minNpa: u_npa, 
+      minWl: u_wl,
+      maxOvdDays: maxOvdDays,        // NEW: Include for debugging
+      netOverdue: netOverdue         // NEW: Include for debugging
+    });
+  });
+
+  return { summary, units };
+}
+
+function getOverdueDetails(cifId) {
+  const data = getSheetData();
+  const records = data.filter(r => r.CIF_ID === cifId);
+  const group = {};
+  let grandTotal = { TOT_OVD_AMT: 0, I_OVD: 0, P_OVD: 0, PENAL_INT: 0 };
+  records.forEach(r => {
+    if (!isValid(r.TOT_OVD_AMT)) return;
+    let d = r.OVD_DATE;
+    if (!group[d]) group[d] = { OVD_DATE: d, TOT_OVD_AMT: 0, I_OVD: 0, P_OVD: 0, PENAL_INT: 0 };
+    const t = Number(r.TOT_OVD_AMT) || 0; const i = Number(r.I_OVD) || 0;
+    const p = Number(r.P_OVD) || 0; const pen = Number(r.PENAL_INT) || 0;
+    group[d].TOT_OVD_AMT += t; group[d].I_OVD += i; group[d].P_OVD += p; group[d].PENAL_INT += pen;
+    grandTotal.TOT_OVD_AMT += t; grandTotal.I_OVD += i; grandTotal.P_OVD += p; grandTotal.PENAL_INT += pen;
+  });
+  return { rows: Object.values(group), total: grandTotal };
+}
+
+function getSlicerOptions(cifId) {
+  const data = getSheetData();
+  const records = data.filter(r => r.CIF_ID === cifId && isValid(r.TOT_OVD_AMT));
+  let yearsSet = new Set();
+  let monthsSet = new Set();
+  records.forEach(r => {
+    if (r.NEPALI_OVD_Year) yearsSet.add(String(r.NEPALI_OVD_Year));
+    if (r.NEPALI_OVD_Month) monthsSet.add(String(r.NEPALI_OVD_Month));
+  });
+  const sortedYears = Array.from(yearsSet).sort().reverse();
+  const sortedMonths = Array.from(monthsSet).sort((a, b) => NEPALI_MONTHS.indexOf(a) - NEPALI_MONTHS.indexOf(b));
+  return { years: sortedYears, months: sortedMonths };
+}
+
+function getSlicerSummary(cifId, yearsArray, months) {
+  const data = getSheetData();
+  const filtered = data.filter(r => {
+    const rYear = String(r.NEPALI_OVD_Year);
+    const isYear = yearsArray.includes("ALL") || yearsArray.includes(rYear);
+    return r.CIF_ID === cifId && isYear && months.includes(r.NEPALI_OVD_Month) && isValid(r.TOT_OVD_AMT);
+  });
+  const group = {};
+  filtered.forEach(r => {
+    let m = r.NEPALI_OVD_Month; 
+    if (!group[m]) group[m] = { NEPALI_OVD_Month: m, TOT_OVD_AMT: 0, I_OVD: 0, P_OVD: 0, PENAL_INT: 0 };
+    group[m].TOT_OVD_AMT += Number(r.TOT_OVD_AMT) || 0;
+    group[m].I_OVD += Number(r.I_OVD) || 0;
+    group[m].P_OVD += Number(r.P_OVD) || 0;
+    group[m].PENAL_INT += Number(r.PENAL_INT) || 0;
+  });
+  return Object.values(group).sort((a,b) => NEPALI_MONTHS.indexOf(a.NEPALI_OVD_Month) - NEPALI_MONTHS.indexOf(b.NEPALI_OVD_Month));
+}
+
+function getCustomerExtraDetails(cifId) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('CustomerInfo');
+  if (!sheet) return null;
+  const data = sheet.getDataRange().getDisplayValues();
+  const headers = data.shift();
+  for (let row of data) {
+    let obj = {};
+    headers.forEach((h, i) => obj[h] = row[i]);
+    if (String(obj.CIF_ID).trim() === String(cifId).trim()) {
+      return obj;
+    }
+  }
+  return null;
+}
+
+// ========== NEW: DASHBOARD PAGE ==========
+function serveDashboard() {
+  return HtmlService.createHtmlOutputFromFile('Dashboard')
+    .setTitle('Dashboard | Behind Schedule')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no');
+}
+
+// ========== NEW: CATEGORY TABLE ENDPOINT (CIF_ID UNIQUE) ==========
+function getCustomersByCategory(category, relationship, sortBy, sortOrder, page, pageSize) {
+  category = category || 'ALL';
+  relationship = relationship || 'ALL';
+  sortBy = sortBy || 'name';
+  sortOrder = sortOrder || 'asc';
+  page = parseInt(page) || 1;
+  pageSize = parseInt(pageSize) || 10;
+
+  const data = getSheetData();
+  const criteria = getCategoryCriteria();
+
+  const custMap = new Map();   // key = CIF_ID
+
+  data.forEach(row => {
+    const cif = row.CIF_ID;
+    if (!cif) return;
+
+    if (!custMap.has(cif)) {
+      custMap.set(cif, {
+        cifId: cif,
+        name: row.CUSTOMER_NAME || 'N/A',
+        relationship: row.CUST_RELATIONSHIP || '',
+        maxOvdDays: 0,
+        maxRevOvdDays: 0,
+        outstandingLoan: 0,
+        actualCat: 'Pass',
+        probableCat: 'Pass',
+        netOverdue: 0  // NEW: Track net overdue
+      });
+    }
+
+    const cust = custMap.get(cif);
+    const ovd = Number(row.OVD_DAYS) || 0;
+    const revOvd = Number(row.REV_OVD_DAYS) || 0;
+    if (ovd > cust.maxOvdDays) cust.maxOvdDays = ovd;
+    if (revOvd > cust.maxRevOvdDays) cust.maxRevOvdDays = revOvd;
+
+    // NEW: Accumulate net overdue
+    const iOvd = Number(row.I_OVD) || 0;
+    const pOvd = Number(row.P_OVD) || 0;
+    cust.netOverdue += iOvd + pOvd;
+
+    // Sum outstanding loan for this CIF (all accounts)
+    cust.outstandingLoan += Number(row.OUTSTANDING_LOAN) || 0;
+  });
+
+  const customers = [];
+  custMap.forEach(cust => {
+    // NEW: Determine categories based on net overdue
+    if (Math.abs(cust.netOverdue) < 0.0001) {
+      // Net overdue is zero - force Pass categories
+      cust.actualCat = 'Pass';
+      cust.probableCat = 'Pass';
+    } else {
+      // Net overdue > 0 - use criteria based on max days
+      for (let rule of criteria) {
+        if (cust.maxOvdDays >= rule.min && cust.maxOvdDays <= rule.max) {
+          cust.actualCat = rule.actual;
+          break;
+        }
+      }
+      // Determine probable category
+      for (let rule of criteria) {
+        if (cust.maxRevOvdDays >= rule.min && cust.maxRevOvdDays <= rule.max) {
+          cust.probableCat = rule.probable;
+          break;
+        }
+      }
+    }
+
+    // --- RELATIONSHIP FILTER ---
+    if (relationship !== 'ALL') {
+      const custRel = (cust.relationship || '').trim().toUpperCase();
+      if (custRel !== relationship.toUpperCase()) return;
+    }
+
+    // --- CATEGORY FILTER ---
+    let include = false;
+    switch (category.toUpperCase()) {
+      case 'ALL': include = true; break;
+      case 'NPA': include = cust.actualCat.toUpperCase() === 'NPA'; break;
+      case 'WL': include = cust.actualCat.toUpperCase() === 'WL'; break;
+      case 'PWL': include = cust.probableCat.toUpperCase() === 'PWL'; break;
+      case 'PNPA': include = cust.probableCat.toUpperCase() === 'PNPA'; break;
+      case 'PASS': include = cust.actualCat.toUpperCase() === 'PASS'; break;
+      default: include = true;
+    }
+    if (!include) return;
+
+    customers.push({
+      cifId: cust.cifId,
+      name: cust.name,
+      limit: cust.outstandingLoan,
+      relationship: cust.relationship,
+      actualCat: cust.actualCat,
+      probableCat: cust.probableCat
+    });
+  });
+
+  // Sorting
+  customers.sort((a, b) => {
+    let valA, valB;
+    if (sortBy === 'name') {
+      valA = a.name.toUpperCase();
+      valB = b.name.toUpperCase();
+    } else {
+      valA = a.limit;
+      valB = b.limit;
+    }
+    if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
+    if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  // Pagination
+  const total = customers.length;
+  const start = (page - 1) * pageSize;
+  const end = Math.min(start + pageSize, total);
+  const paginated = customers.slice(start, end);
+
+  return {
+    customers: paginated,
+    total: total,
+    page: page,
+    pageSize: pageSize,
+    totalPages: Math.ceil(total / pageSize)
+  };
+}
