@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, viewport-fit=cover">
+  <title>GPS Locations</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    :root {
+      --primary: #1A3B5C; --primary-light: #2A5A8C; --accent-gold: #C9A227;
+      --bg-light: #F4F7FC; --surface-white: #FFFFFF; --text-primary: #0A1929;
+      --text-muted: #5A6E8A; --border-light: #E2E8F0; --danger: #E53E3E; --success: #00A86B;
+      --shadow-sm: 0 2px 8px rgba(0,0,0,0.04); --shadow-md: 0 8px 20px rgba(0,0,0,0.06);
+      --radius-xl: 28px; --radius-lg: 18px; --radius-md: 14px; --radius-sm: 10px;
+      --transition: all 0.25s cubic-bezier(0.2, 0, 0, 1);
+    }
+    body {
+      font-family: 'Inter', 'Plus Jakarta Sans', sans-serif;
+      background: var(--bg-light);
+      margin: 0; padding: 0 0 80px; color: var(--text-primary);
+    }
+    .hidden { display: none !important; }
+    header {
+      background: rgba(255,255,255,0.95); backdrop-filter: blur(20px);
+      padding: 16px 20px; position: sticky; top: 0; z-index: 100;
+      border-bottom: 1px solid rgba(0,0,0,0.05); box-shadow: var(--shadow-sm);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .back-btn {
+      background: transparent; border: none; color: var(--primary);
+      font-size: 28px; cursor: pointer; padding: 4px; line-height: 1;
+    }
+    .app-title {
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+      font-size: 20px; letter-spacing: -0.3px;
+    }
+    .add-btn {
+      background: var(--primary); color: white; border: none;
+      padding: 10px 18px; border-radius: 40px; font-weight: 600;
+      font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 6px;
+    }
+    .customer-card {
+      background: var(--surface-white); margin: 20px; padding: 20px;
+      border-radius: var(--radius-lg); box-shadow: var(--shadow-sm);
+      border: 1px solid var(--border-light);
+    }
+    .customer-name { font-size: 22px; font-weight: 700; }
+    .cif-id { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+    .location-list { padding: 0 20px; display: flex; flex-direction: column; gap: 12px; }
+    .location-card {
+      background: var(--surface-white); border-radius: var(--radius-lg);
+      padding: 16px; box-shadow: var(--shadow-sm); border: 1px solid var(--border-light);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .loc-icon {
+      width: 44px; height: 44px; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; background: var(--bg-light);
+    }
+    .loc-info { flex: 1; margin-left: 14px; }
+    .loc-type { font-weight: 600; font-size: 15px; }
+    .loc-name { font-size: 13px; color: var(--text-muted); }
+    .loc-coords { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+    .loc-actions { display: flex; gap: 8px; }
+    .icon-btn {
+      background: var(--bg-light); border: none; padding: 10px;
+      border-radius: 12px; color: var(--primary); cursor: pointer;
+      font-size: 20px; display: flex; align-items: center; justify-content: center;
+    }
+    .modal {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.4); backdrop-filter: blur(8px);
+      display: flex; align-items: flex-end; justify-content: center; z-index: 1000;
+    }
+    .modal-box {
+      background: var(--surface-white); border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+      padding: 24px 20px; width: 100%; max-width: 420px;
+      animation: slideUp 0.3s ease;
+    }
+    @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+    .modal-title { font-size: 20px; font-weight: 700; margin-bottom: 20px; }
+    .form-group { margin-bottom: 16px; }
+    .form-label { font-size: 13px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; display: block; }
+    .form-select, .form-input {
+      width: 100%; padding: 14px; border-radius: var(--radius-md);
+      border: 1px solid var(--border-light); font-size: 15px; background: white;
+    }
+    .form-actions { display: flex; gap: 10px; margin-top: 20px; }
+    .btn-primary {
+      background: var(--primary); color: white; border: none;
+      padding: 14px; border-radius: 40px; font-weight: 600; flex: 1; cursor: pointer;
+    }
+    .btn-secondary {
+      background: transparent; border: 1px solid var(--border-light);
+      color: var(--text-muted); padding: 14px; border-radius: 40px;
+      font-weight: 600; flex: 1; cursor: pointer;
+    }
+    .empty-state { text-align: center; padding: 40px 20px; color: var(--text-muted); }
+    .empty-state i { font-size: 48px; margin-bottom: 12px; }
+  </style>
+</head>
+<body>
+  <header>
+    <button class="back-btn" onclick="history.back()"><i class="material-icons-round">arrow_back</i></button>
+    <div class="app-title">📍 GPS Locations</div>
+    <button class="add-btn" onclick="showAddDialog()">
+      <i class="material-icons-round">add</i> Record
+    </button>
+  </header>
+
+  <div class="customer-card" id="customerInfo">
+    <div class="customer-name" id="custName">Loading…</div>
+    <div class="cif-id" id="custCif"></div>
+  </div>
+
+  <div class="location-list" id="locationList">
+    <div class="empty-state" id="emptyState">
+      <i class="material-icons-round">location_off</i>
+      <p>No locations recorded yet.</p>
+    </div>
+  </div>
+
+  <!-- Add/Edit Modal -->
+  <div class="modal hidden" id="locationModal">
+    <div class="modal-box">
+      <div class="modal-title" id="modalTitle">Record Location</div>
+      <div class="form-group">
+        <label class="form-label">Location Type</label>
+        <select class="form-select" id="locType" onchange="toggleCustomName()">
+          <option value="Business">Business</option>
+          <option value="Residence">Residence</option>
+          <option value="Collateral">Collateral</option>
+        </select>
+      </div>
+      <div class="form-group" id="customNameGroup">
+        <label class="form-label">Name</label>
+        <input type="text" class="form-input" id="customName" placeholder="e.g. Village Home">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Coordinates</label>
+        <div style="display:flex; gap:8px;">
+          <input type="text" class="form-input" id="latField" placeholder="Lat" readonly>
+          <input type="text" class="form-input" id="lngField" placeholder="Lng" readonly>
+        </div>
+        <button class="btn-primary" style="margin-top:10px; width:100%;" onclick="captureGPS()">
+          <i class="material-icons-round">gps_fixed</i> Capture Current GPS
+        </button>
+        <span id="gpsStatus" style="font-size:12px; color:var(--text-muted);"></span>
+      </div>
+      <div class="form-actions">
+        <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn-primary" onclick="saveLocation()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const cifId = urlParams.get('cifId');
+    const API_BASE = window.location.origin + window.location.pathname; // will be the Apps Script exec URL
+    // Remove existing action/page params to build clean base
+    const baseUrl = API_BASE.replace(/\?.*$/, '');
+
+    let currentRecords = [];
+    let selectedRecord = null;
+    let newLat, newLng;
+
+    // ----- Initial Load -----
+    window.onload = async () => {
+      if (!cifId) { alert('No customer selected.'); return; }
+      try {
+        const info = await callGPS('getCustomerInfo', { cifId });
+        document.getElementById('custName').textContent = info.name;
+        document.getElementById('custCif').textContent = 'CIF: ' + info.cifId;
+        await refreshLocations();
+      } catch (e) { alert('Failed to load customer info.'); }
+    };
+
+    async function refreshLocations() {
+      try {
+        currentRecords = await callGPS('getGPSData', { cifId });
+        renderLocationList(currentRecords);
+      } catch (e) { alert('Error loading locations.'); }
+    }
+
+    function renderLocationList(records) {
+      const container = document.getElementById('locationList');
+      const emptyState = document.getElementById('emptyState');
+      if (records.length === 0) {
+        container.innerHTML = '';
+        container.appendChild(emptyState);
+        emptyState.classList.remove('hidden');
+        return;
+      }
+      emptyState.classList.add('hidden');
+      container.innerHTML = records.map((rec, idx) => {
+        let icon = 'business';
+        if (rec.type === 'Residence') icon = 'home';
+        else if (rec.type === 'Collateral') icon = 'location_on';
+        const name = rec.customName || rec.type;
+        return `
+          <div class="location-card">
+            <div class="loc-icon"><i class="material-icons-round">${icon}</i></div>
+            <div class="loc-info">
+              <div class="loc-type">${rec.type}</div>
+              <div class="loc-name">${name}</div>
+              <div class="loc-coords">${rec.lat.toFixed(5)}, ${rec.lng.toFixed(5)}</div>
+            </div>
+            <div class="loc-actions">
+              <button class="icon-btn" onclick="openMaps(${rec.lat},${rec.lng})" title="Open in Maps"><i class="material-icons-round">map</i></button>
+              <button class="icon-btn" onclick="editLocation(${idx})" title="Update"><i class="material-icons-round">edit</i></button>
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    function showAddDialog() {
+      selectedRecord = null;
+      document.getElementById('modalTitle').textContent = 'Record New Location';
+      document.getElementById('locType').value = 'Business';
+      document.getElementById('customName').value = '';
+      document.getElementById('latField').value = '';
+      document.getElementById('lngField').value = '';
+      document.getElementById('gpsStatus').textContent = '';
+      toggleCustomName();
+      document.getElementById('locationModal').classList.remove('hidden');
+    }
+
+    function editLocation(idx) {
+      const rec = currentRecords[idx];
+      selectedRecord = rec;
+      document.getElementById('modalTitle').textContent = 'Update Location';
+      document.getElementById('locType').value = rec.type;
+      document.getElementById('locType').disabled = true;
+      document.getElementById('customName').value = rec.customName || '';
+      document.getElementById('latField').value = rec.lat;
+      document.getElementById('lngField').value = rec.lng;
+      document.getElementById('gpsStatus').textContent = '';
+      toggleCustomName();
+      document.getElementById('locationModal').classList.remove('hidden');
+    }
+
+    function closeModal() {
+      document.getElementById('locationModal').classList.add('hidden');
+      document.getElementById('locType').disabled = false;
+      selectedRecord = null;
+    }
+
+    function toggleCustomName() {
+      const type = document.getElementById('locType').value;
+      document.getElementById('customNameGroup').classList.toggle('hidden', type === 'Business');
+    }
+
+    function captureGPS() {
+      if (!navigator.geolocation) { alert('Geolocation not supported.'); return; }
+      document.getElementById('gpsStatus').textContent = 'Acquiring GPS…';
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          newLat = pos.coords.latitude;
+          newLng = pos.coords.longitude;
+          document.getElementById('latField').value = newLat.toFixed(6);
+          document.getElementById('lngField').value = newLng.toFixed(6);
+          document.getElementById('gpsStatus').textContent = `Accuracy: ${pos.coords.accuracy.toFixed(1)}m`;
+        },
+        (err) => { document.getElementById('gpsStatus').textContent = 'Failed to get location.'; alert('GPS error: ' + err.message); },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    }
+
+    async function saveLocation() {
+      const type = document.getElementById('locType').value;
+      const customName = document.getElementById('customName').value.trim();
+      const lat = parseFloat(document.getElementById('latField').value);
+      const lng = parseFloat(document.getElementById('lngField').value);
+      if (isNaN(lat) || isNaN(lng)) { alert('Capture GPS first.'); return; }
+      if ((type === 'Residence' || type === 'Collateral') && !customName) {
+        alert('Please provide a name.'); return;
+      }
+      try {
+        if (selectedRecord) {
+          await callGPS('updateGPSRecord', { cifId, type, oldName: selectedRecord.customName, newName: customName, lat, lng });
+        } else {
+          await callGPS('saveGPSRecord', { cifId, type, name: customName, lat, lng });
+        }
+        closeModal();
+        await refreshLocations();
+      } catch (e) { alert('Save failed: ' + e.message); }
+    }
+
+    function openMaps(lat, lng) {
+      window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`, '_blank');
+    }
+
+    // ----- JSONP helper (same as main app) -----
+    function callGPS(action, params) {
+      return new Promise((resolve, reject) => {
+        const callback = 'jsonp_gps_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+        const script = document.createElement('script');
+        let url = baseUrl + '?action=' + action;
+        Object.entries(params).forEach(([k, v]) => { if (v !== undefined && v !== null) url += '&' + k + '=' + encodeURIComponent(v); });
+        url += '&callback=' + callback;
+
+        window[callback] = (data) => {
+          delete window[callback];
+          document.body.removeChild(script);
+          if (data.error) reject(new Error(data.error));
+          else resolve(data);
+        };
+        script.src = url;
+        script.onerror = () => { delete window[callback]; document.body.removeChild(script); reject(new Error('Network error')); };
+        document.body.appendChild(script);
+      });
+    }
+  </script>
+</body>
+</html>
