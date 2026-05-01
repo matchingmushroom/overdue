@@ -881,6 +881,7 @@
             <div class="header-actions">
               <span class="action-icon" onclick="openShareModal()" title="Share Account Details">📤</span>
               <span class="action-icon" onclick="openReminderPopup()" title="Send Reminder">🔔</span>
+              <span class="action-icon" onclick="openGPS()" title="Globe View">🌐</span>
             </div>
           </div>
           <div class="header-sub">
@@ -1558,6 +1559,10 @@
     document.getElementById('tab-daily').classList.toggle('active', t === 'daily'); 
     document.getElementById('tab-nepali').classList.toggle('active', t === 'nepali'); 
   }
+  function openGPS() {
+  if (!currentCIF) { alert("Select a customer first."); return; }
+  window.location.href = '?page=gps&cifId=' + currentCIF;
+}
 </script>
 </body>
 </html>
