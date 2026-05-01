@@ -1919,7 +1919,7 @@ function captureGpsLocation() {
 
 function submitGpsForm() {
   const type = document.getElementById('gpsLocType').value;
-  const label = document.getElementById('gpsLabel').value || (type === 'Business' ? 'Primary Business' : '');
+  const label = document.getElementById('gpsLabel').value || (type === 'Business' ? 'Business' : '');
   const lat = window.gpsCapturedLat;
   const lng = window.gpsCapturedLng;
   if (!lat || !lng) {
@@ -1970,10 +1970,10 @@ function gpsTypeChanged() {
   const labelGroup = document.getElementById('gpsLabelGroup');
   if (type === 'Business') {
     labelGroup.classList.add('hidden');
-    document.getElementById('gpsLabel').value = 'Primary Business';
+    document.getElementById('gpsLabel').value = 'Business';
   } else {
     labelGroup.classList.remove('hidden');
-    if (document.getElementById('gpsLabel').value === 'Primary Business') {
+    if (document.getElementById('gpsLabel').value === 'Business') {
       document.getElementById('gpsLabel').value = '';
     }
   }
