@@ -62,6 +62,129 @@
       margin: 0 auto;
     }
     
+        /* ---------- GPS Modal (new) ---------- */
+    .gps-modal {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.4);
+      backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1100;
+      padding: 20px;
+    }
+    .gps-box {
+      background: var(--surface-white);
+      border-radius: var(--radius-xl);
+      padding: 28px 24px;
+      width: 100%;
+      max-width: 480px;
+      box-shadow: var(--shadow-lg);
+      border: 1px solid var(--border-light);
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+    .gps-title {
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 20px;
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .gps-chip-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .location-chip {
+      background: var(--bg-light);
+      border: 1px solid var(--border-light);
+      padding: 10px 16px;
+      border-radius: 40px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: var(--transition);
+    }
+    .location-chip:hover {
+      background: var(--primary-light);
+      color: white;
+      border-color: var(--primary-light);
+    }
+    .gps-form {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      margin: 20px 0;
+    }
+    .gps-form label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+    .gps-form select, .gps-form input {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-light);
+      font-family: inherit;
+      font-size: 14px;
+      background: #FAFCFE;
+    }
+    .gps-coord-display {
+      background: var(--bg-light);
+      padding: 12px;
+      border-radius: var(--radius-md);
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+    .gps-btn {
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 12px;
+      border-radius: 40px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: var(--transition);
+    }
+    .gps-btn:hover {
+      background: var(--primary-light);
+    }
+    .gps-btn-outline {
+      background: transparent;
+      border: 1px solid var(--primary);
+      color: var(--primary);
+    }
+    .manual-search-input {
+      margin-bottom: 16px;
+    }
+    .search-results-inline {
+      margin-top: 8px;
+      max-height: 120px;
+      overflow-y: auto;
+    }
+    .search-result-item-compact {
+      background: var(--bg-light);
+      padding: 8px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      margin-bottom: 4px;
+      font-size: 13px;
+      border: 1px solid transparent;
+    }
+    .search-result-item-compact:hover {
+      border-color: var(--primary);
+    }
+
+
     /* ----- Premium Header ----- */
     header {
       background: rgba(255, 255, 255, 0.95);
@@ -1000,6 +1123,72 @@
   </div>
 </div>
 
+<!-- GPS Location Manager Modal -->
+<div id="gpsModal" class="gps-modal hidden">
+  <div class="gps-box">
+    <div class="gps-title">🌐 GPS Location Manager</div>
+
+    <!-- Manual Entry Toggle -->
+    <div style="display:flex; justify-content:flex-end; margin-bottom:10px;">
+      <button class="gps-btn-outline" id="toggleManualEntry" style="font-size:12px; padding:6px 12px;" onclick="toggleManualEntry()">🔍 Manual Entry</button>
+    </div>
+
+    <!-- Manual Search Section (hidden by default) -->
+    <div id="gpsManualSearch" class="hidden">
+      <input type="text" id="gpsManualSearchInp" class="search-input manual-search-input" placeholder="Search customer name or CIF..." oninput="searchGpsCustomer()">
+      <div id="gpsManualResults" class="search-results-inline"></div>
+      <hr style="margin:12px 0;">
+    </div>
+
+    <!-- Current Customer Info (shown when not in manual mode) -->
+    <div id="gpsCurrentCustomerInfo" style="margin-bottom:16px;">
+      <div style="font-weight:600; font-size:16px;" id="gpsCustName"></div>
+      <div style="color:var(--text-muted); font-size:12px;" id="gpsCustId"></div>
+    </div>
+
+    <!-- Existing Locations -->
+    <div id="gpsChips" class="gps-chip-container"></div>
+
+    <!-- Control Bar -->
+    <div style="display:flex; gap:10px; margin-bottom:20px;">
+      <button class="gps-btn" onclick="showGpsAddForm()">+ Add New</button>
+      <button class="gps-btn-outline" onclick="showGpsUpdateMode()">✎ Manage</button>
+    </div>
+
+    <!-- Add/Update Form -->
+    <div id="gpsForm" class="gps-form hidden">
+      <div>
+        <label>Location Type</label>
+        <select id="gpsLocType" onchange="gpsTypeChanged()">
+          <option value="Residence">🏠 Residence</option>
+          <option value="Business">🏢 Business</option>
+          <option value="Collateral">🚜 Collateral</option>
+        </select>
+      </div>
+      <div id="gpsLabelGroup" class="hidden">
+        <label>Custom Label</label>
+        <input type="text" id="gpsLabel" placeholder="e.g., City Home, Warehouse">
+      </div>
+      <div>
+        <label>Coordinates</label>
+        <div id="gpsCoordsDisplay" class="gps-coord-display">Awaiting GPS capture...</div>
+        <button type="button" class="gps-btn-outline" style="margin-top:8px; width:100%;" onclick="captureGpsLocation()">📍 Capture My Current Location</button>
+      </div>
+      <div style="display:flex; gap:10px; margin-top:10px;">
+        <button class="gps-btn" onclick="submitGpsForm()">💾 Save</button>
+        <button class="gps-btn-outline" onclick="cancelGpsForm()">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Update/Delete Mode (list with delete) -->
+    <div id="gpsUpdateList" class="hidden">
+      <div id="gpsUpdateItems" style="margin-bottom:12px;"></div>
+    </div>
+
+    <button class="close-btn" onclick="closeGpsModal()">Close</button>
+  </div>
+</div>
+
 <script>
   // ========== PWA SERVICE WORKER REGISTRATION ==========
   if ('serviceWorker' in navigator) {
@@ -1045,7 +1234,7 @@
   }
   
   // ========== BACKEND API HELPER (REPLACES google.script.run) ==========
-  const API_BASE = 'https://script.google.com/macros/s/AKfycbx4Nl5MJm9UjkSskwRAfZmMnN6M5MTtabLuvb5_b48tvnov06LKfrGv_-KRCBjXaBDw/exec';
+  const API_BASE = 'https://script.google.com/macros/s/AKfycbyrxcebHInHzikp7xlgV1b1fXYuGSIn3_panIMwX_XqnjTWqjcR5wSVW13MzLWNGvk/exec';
   
   async function callBackend(action, params = {}) {
     const url = new URL(API_BASE);
@@ -1559,11 +1748,271 @@
     document.getElementById('tab-daily').classList.toggle('active', t === 'daily'); 
     document.getElementById('tab-nepali').classList.toggle('active', t === 'nepali'); 
   }
-  function openGPS() {
-  if (!currentCIF) { alert("Select a customer first."); return; }
-  // API_BASE is already defined as your Apps Script deployment URL
-  window.location.href = API_BASE + '?page=gps&cifId=' + currentCIF;
+
+  // ========== GPS LOCATION MANAGER ==========
+let gpsCurrentCIF = null, gpsCurrentCustomer = null, gpsRecords = [], gpsManualMode = false, gpsManualCIF = null;
+
+function openGPS() {
+  if (!currentCIF && !gpsManualCIF) {
+    alert("Select a customer first.");
+    return;
+  }
+  const cif = gpsManualCIF || currentCIF;
+  gpsCurrentCIF = cif;
+  document.getElementById('gpsModal').classList.remove('hidden');
+  loadGpsRecords();
 }
+
+function closeGpsModal() {
+  document.getElementById('gpsModal').classList.add('hidden');
+  gpsManualMode = false;
+  gpsManualCIF = null;
+  document.getElementById('gpsManualSearch').classList.add('hidden');
+  document.getElementById('toggleManualEntry').innerText = '🔍 Manual Entry';
+}
+
+function loadGpsRecords() {
+  toggleLoader(true);
+  callBackend('getGpsRecords', { cifId: gpsCurrentCIF })
+    .then(d => {
+      gpsRecords = d.records || [];
+      renderGpsChips();
+      if (!gpsManualCIF) {
+        // Update customer info display
+        document.getElementById('gpsCustName').innerText = window.currentCustomer.name || '';
+        document.getElementById('gpsCustId').innerText = 'CIF: ' + gpsCurrentCIF;
+      } else {
+        document.getElementById('gpsCustName').innerText = gpsManualCustomerName || gpsCurrentCIF;
+        document.getElementById('gpsCustId').innerText = 'CIF: ' + gpsCurrentCIF + ' (manual)';
+      }
+      toggleLoader(false);
+    })
+    .catch(err => {
+      alert('Failed to load GPS records');
+      toggleLoader(false);
+    });
+}
+
+function renderGpsChips() {
+  const container = document.getElementById('gpsChips');
+  container.innerHTML = '';
+  if (gpsRecords.length === 0) {
+    container.innerHTML = '<div style="color:var(--text-muted); font-size:13px;">No locations saved yet.</div>';
+    return;
+  }
+  gpsRecords.forEach(r => {
+    const icon = r.LocationType === 'Residence' ? '🏠' : r.LocationType === 'Business' ? '🏢' : '🚜';
+    const label = r.CollateralName || r.LocationType;
+    const chip = document.createElement('div');
+    chip.className = 'location-chip';
+    chip.innerHTML = `${icon} ${label}`;
+    chip.onclick = () => {
+      if (r.Latitude && r.Longitude) {
+        window.open(`https://www.google.com/maps?q=${r.Latitude},${r.Longitude}`, '_blank');
+      } else {
+        alert('No coordinates saved for this location.');
+      }
+    };
+    container.appendChild(chip);
+  });
+}
+
+function showGpsAddForm() {
+  // Reset form
+  document.getElementById('gpsLocType').value = 'Residence';
+  gpsTypeChanged();
+  document.getElementById('gpsLabel').value = '';
+  document.getElementById('gpsCoordsDisplay').innerText = 'Awaiting GPS capture...';
+  window.gpsCapturedLat = null;
+  window.gpsCapturedLng = null;
+  document.getElementById('gpsForm').classList.remove('hidden');
+  document.getElementById('gpsUpdateList').classList.add('hidden');
+}
+
+function showGpsUpdateMode() {
+  const list = document.getElementById('gpsUpdateItems');
+  list.innerHTML = gpsRecords.map(r => `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;
+                background:var(--bg-light); padding:10px 14px; border-radius:var(--radius-md);">
+      <span><b>${r.LocationType}</b> - ${r.CollateralName || 'No label'}</span>
+      <button class="gps-btn-outline" style="font-size:12px; padding:4px 10px;" onclick="editGpsRecord(${r.rowIndex})">✎</button>
+      <button class="gps-btn-outline" style="font-size:12px; padding:4px 10px; color:var(--danger); border-color:var(--danger);" onclick="deleteGpsRecord(${r.rowIndex})">🗑</button>
+    </div>
+  `).join('');
+  document.getElementById('gpsUpdateList').classList.remove('hidden');
+  document.getElementById('gpsForm').classList.add('hidden');
+}
+
+function editGpsRecord(rowIndex) {
+  const rec = gpsRecords.find(r => r.rowIndex === rowIndex);
+  if (!rec) return;
+  // Populate form for editing
+  document.getElementById('gpsLocType').value = rec.LocationType;
+  gpsTypeChanged();
+  document.getElementById('gpsLabel').value = rec.CollateralName || '';
+  // Set captured coords if exist
+  if (rec.Latitude && rec.Longitude) {
+    window.gpsCapturedLat = rec.Latitude;
+    window.gpsCapturedLng = rec.Longitude;
+    document.getElementById('gpsCoordsDisplay').innerText = `${rec.Latitude}, ${rec.Longitude}`;
+  } else {
+    window.gpsCapturedLat = null;
+    window.gpsCapturedLng = null;
+    document.getElementById('gpsCoordsDisplay').innerText = 'Awaiting GPS capture...';
+  }
+  // Pass row index to submit as update
+  window.gpsEditRow = rowIndex;
+  document.getElementById('gpsForm').classList.remove('hidden');
+  document.getElementById('gpsUpdateList').classList.add('hidden');
+}
+
+function deleteGpsRecord(rowIndex) {
+  if (!confirm('Delete this location?')) return;
+  toggleLoader(true);
+  callBackend('deleteGpsRecord', { rowIndex: rowIndex })
+    .then(res => {
+      toggleLoader(false);
+      if (res && res.error) {
+        alert('Delete failed: ' + res.error);
+        return;
+      }
+      loadGpsRecords();
+    })
+    .catch(err => {
+      alert('Network error: ' + err.message);
+      toggleLoader(false);
+    });
+}
+
+function captureGpsLocation() {
+  if (!navigator.geolocation) {
+    alert('Geolocation is not supported by your browser');
+    return;
+  }
+  document.getElementById('gpsCoordsDisplay').innerText = 'Locating...';
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      window.gpsCapturedLat = pos.coords.latitude;
+      window.gpsCapturedLng = pos.coords.longitude;
+      document.getElementById('gpsCoordsDisplay').innerText = `${pos.coords.latitude}, ${pos.coords.longitude}`;
+    },
+    err => {
+      alert('Unable to retrieve location: ' + err.message);
+      document.getElementById('gpsCoordsDisplay').innerText = 'Location unavailable';
+    },
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
+}
+
+function submitGpsForm() {
+  const type = document.getElementById('gpsLocType').value;
+  const label = document.getElementById('gpsLabel').value || (type === 'Business' ? 'Primary Business' : '');
+  const lat = window.gpsCapturedLat;
+  const lng = window.gpsCapturedLng;
+  if (!lat || !lng) {
+    alert('Please capture GPS coordinates before saving.');
+    return;
+  }
+  const params = {
+    cifId: gpsCurrentCIF,
+    locationType: type,
+    label: label,
+    latitude: lat,
+    longitude: lng,
+    customerName: document.getElementById('gpsCustName').innerText || 'N/A'
+  };
+  toggleLoader(true);
+  const action = window.gpsEditRow ? 'updateGpsRecord' : 'saveGpsRecord';
+  if (window.gpsEditRow) params.rowIndex = window.gpsEditRow;
+  
+  callBackend(action, params)
+    .then(res => {
+      toggleLoader(false);
+      // Check if backend returned an error
+      if (res && res.error) {
+        alert('Save failed: ' + res.error);
+        return;
+      }
+      if (res && res.success === false) {
+        alert('Save failed: ' + (res.error || 'Unknown error'));
+        return;
+      }
+      window.gpsEditRow = null;
+      document.getElementById('gpsForm').classList.add('hidden');
+      loadGpsRecords();   // refresh list
+    })
+    .catch(err => {
+      alert('Network error: ' + err.message);
+      toggleLoader(false);
+    });
+}
+
+function cancelGpsForm() {
+  document.getElementById('gpsForm').classList.add('hidden');
+  window.gpsEditRow = null;
+}
+
+function gpsTypeChanged() {
+  const type = document.getElementById('gpsLocType').value;
+  const labelGroup = document.getElementById('gpsLabelGroup');
+  if (type === 'Business') {
+    labelGroup.classList.add('hidden');
+    document.getElementById('gpsLabel').value = 'Primary Business';
+  } else {
+    labelGroup.classList.remove('hidden');
+    if (document.getElementById('gpsLabel').value === 'Primary Business') {
+      document.getElementById('gpsLabel').value = '';
+    }
+  }
+}
+
+// Manual Entry Toggle
+let gpsManualCustomerName = '';
+function toggleManualEntry() {
+  gpsManualMode = !gpsManualMode;
+  if (gpsManualMode) {
+    document.getElementById('gpsManualSearch').classList.remove('hidden');
+    document.getElementById('toggleManualEntry').innerText = '📌 Use Current Customer';
+    gpsManualCIF = null;
+    gpsRecords = [];
+    document.getElementById('gpsChips').innerHTML = '';
+    document.getElementById('gpsCustName').innerText = 'Select a customer';
+    document.getElementById('gpsCustId').innerText = '';
+  } else {
+    document.getElementById('gpsManualSearch').classList.add('hidden');
+    document.getElementById('toggleManualEntry').innerText = '🔍 Manual Entry';
+    gpsManualCIF = null;
+    gpsRecords = [];
+    if (currentCIF) {
+      openGPS(); // reload with current
+    }
+  }
+}
+
+function searchGpsCustomer() {
+  const q = document.getElementById('gpsManualSearchInp').value.trim().toUpperCase();
+  if (!q) { document.getElementById('gpsManualResults').innerHTML = ''; return; }
+  callBackend('customers').then(list => {
+    const filtered = list.filter(c => c.name.toUpperCase().includes(q) || c.id.includes(q)).slice(0, 6);
+    const html = filtered.map(c => `
+      <div class="search-result-item-compact" onclick="selectGpsManualCustomer('${c.id}','${c.name.replace(/'/g, "\\'")}')">
+        ${c.name} (${c.id})
+      </div>
+    `).join('');
+    document.getElementById('gpsManualResults').innerHTML = html || 'No results';
+  });
+}
+
+function selectGpsManualCustomer(cifId, name) {
+  gpsManualCIF = cifId;
+  gpsManualCustomerName = name;
+  document.getElementById('gpsManualSearch').classList.add('hidden');
+  document.getElementById('toggleManualEntry').innerText = '🔙 Back to Current';
+  // Load records for this manual CIF
+  gpsCurrentCIF = cifId;
+  loadGpsRecords();
+}
+
 </script>
 </body>
 </html>
