@@ -1162,7 +1162,7 @@
         <select id="gpsLocType" onchange="gpsTypeChanged()">
           <option value="Residence">🏠 Residence</option>
           <option value="Business">🏢 Business</option>
-          <option value="Collateral">🚜 Collateral</option>
+          <option value="Collateral">🗺️ Collateral</option>
         </select>
       </div>
       <div id="gpsLabelGroup" class="hidden">
@@ -1188,7 +1188,6 @@
     <button class="close-btn" onclick="closeGpsModal()">Close</button>
   </div>
 </div>
-
 <script>
   // ========== PWA SERVICE WORKER REGISTRATION ==========
   if ('serviceWorker' in navigator) {
@@ -1234,7 +1233,7 @@
   }
   
   // ========== BACKEND API HELPER (REPLACES google.script.run) ==========
-  const API_BASE = 'https://script.google.com/macros/s/AKfycbx4Nl5MJm9UjkSskwRAfZmMnN6M5MTtabLuvb5_b48tvnov06LKfrGv_-KRCBjXaBDw/exec';
+  const API_BASE = 'https://script.google.com/macros/s/AKfycbyrxcebHInHzikp7xlgV1b1fXYuGSIn3_panIMwX_XqnjTWqjcR5wSVW13MzLWNGvk/exec';
   
   async function callBackend(action, params = {}) {
     const url = new URL(API_BASE);
@@ -1801,7 +1800,7 @@ function renderGpsChips() {
     return;
   }
   gpsRecords.forEach(r => {
-    const icon = r.LocationType === 'Residence' ? '🏠' : r.LocationType === 'Business' ? '🏢' : '🚜';
+    const icon = r.LocationType === 'Residence' ? '🏠' : r.LocationType === 'Business' ? '🏢' : '🗺️';
     const label = r.CollateralName || r.LocationType;
     const chip = document.createElement('div');
     chip.className = 'location-chip';
@@ -1818,13 +1817,27 @@ function renderGpsChips() {
 }
 
 function showGpsAddForm() {
-  // Reset form
-  document.getElementById('gpsLocType').value = 'Residence';
-  gpsTypeChanged();
+  // Reset form fields
   document.getElementById('gpsLabel').value = '';
   document.getElementById('gpsCoordsDisplay').innerText = 'Awaiting GPS capture...';
   window.gpsCapturedLat = null;
   window.gpsCapturedLng = null;
+  window.gpsEditRow = null;   // clear any edit mode
+
+  // Determine which location types are still available
+  const hasResidence = gpsRecords.some(r => r.LocationType === 'Residence');
+  const hasBusiness  = gpsRecords.some(r => r.LocationType === 'Business');
+  
+  const allowed = [];
+  if (!hasResidence) allowed.push(GPS_TYPES[0]);   // Residence
+  if (!hasBusiness)  allowed.push(GPS_TYPES[1]);   // Business
+  allowed.push(GPS_TYPES[2]);                     // Collateral always allowed
+
+  // If both Residence and Business already exist, the user can only add Collateral.
+  // Still show the button and form – only the dropdown will be limited.
+  
+  populateGpsDropdown(allowed);
+  
   document.getElementById('gpsForm').classList.remove('hidden');
   document.getElementById('gpsUpdateList').classList.add('hidden');
 }
@@ -2012,7 +2025,27 @@ function selectGpsManualCustomer(cifId, name) {
   gpsCurrentCIF = cifId;
   loadGpsRecords();
 }
+// GPS type options (used to rebuild dropdown dynamically)
+const GPS_TYPES = [
+  { value: 'Residence', text: '🏠 Residence' },
+  { value: 'Business',  text: '🏢 Business' },
+  { value: 'Collateral',text: '🗺️ Collateral' }
+];
 
+function populateGpsDropdown(allowedTypes) {
+  const sel = document.getElementById('gpsLocType');
+  sel.innerHTML = '';
+  allowedTypes.forEach(t => {
+    const opt = document.createElement('option');
+    opt.value = t.value;
+    opt.textContent = t.text;
+    sel.appendChild(opt);
+  });
+  if (allowedTypes.length > 0) {
+    sel.value = allowedTypes[0].value;
+    gpsTypeChanged();   // update label visibility
+  }
+}
 </script>
 </body>
 </html>
